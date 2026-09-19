@@ -1,0 +1,31 @@
+name: Compute Earth validation
+on:
+  push:
+    branches: [feat/compute-earth]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate baseline
+        run: |
+          npm run build
+          npm run test:source
+      - name: Source snapshot
+        if: always()
+        run: git archive --format=tar HEAD | gzip > earth-source.tar.gz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: earth-source-${{ github.sha }}
+          path: earth-source.tar.gz
+          retention-days: 7
