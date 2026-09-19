@@ -14,7 +14,7 @@ function updateEstimate(){
  if(progress>.03){const estimate=elapsed*(1-progress)/progress;lastEta=lastEta?lastEta*.7+estimate*.3:estimate;compileEta.textContent=formatEta(lastEta);}
  compileLines.textContent=totalLines?`${totalLines.toLocaleString()} CUDA lines · ${finishedLines.toLocaleString()} processed`:'Scanning CUDA source…';
 }
-const stateLabel={['compile-start']:'TRANSLATING',['compile-done']:'WGSL READY',['pipeline-start']:'GPU PIPELINE',done:'READY'};
+const stateLabel={['compile-start']:'TRANSLATING',['compile-done']:'WGSL READY',['trim-done']:'TRIMMED',['pipeline-start']:'GPU PIPELINE',done:'READY'};
 function ensureJob(entry){
  let row=compileJobs.get(entry);if(row)return row;
  row=document.createElement('div');row.className='console-line active';row.dataset.entry=entry;
@@ -36,9 +36,10 @@ function startupProgress(event,fallback){
  if(e.entry){
   const row=ensureJob(e.entry);if(e.lines&&!row.dataset.lines){row.dataset.lines=String(e.lines);totalLines+=Number(e.lines);}const sub=row.querySelector('small'),state=row.querySelector('em');row.className='console-line '+(e.type==='done'?'done':'active');
   if(e.type==='queued')sub.textContent=`${Number(e.lines||0).toLocaleString()} CUDA lines · queued`;else if(e.type==='compile-start')sub.textContent=`${Number(e.lines||0).toLocaleString()} CUDA lines · CUDA source → portable WGSL`;
-  else if(e.type==='compile-done')sub.textContent='Translation complete · creating native pipeline';
-  else if(e.type==='pipeline-start')sub.textContent=String(e.message||'GPU pipeline').replace(/^GPU pipeline\s*[·:]?\s*/,'')||'Creating WebGPU pipeline';
-  else if(e.type==='done'){sub.textContent=e.timing?`${Number(e.lines||0).toLocaleString()} lines · ${e.message} · load ${Math.round(e.timing.loadOrTranslateMs)}ms · pipeline ${Math.round(e.timing.pipelineMs)}ms`:String(e.message||'Complete');compileDone++;if(!row.dataset.counted){finishedLines+=Number(e.lines||0);row.dataset.counted='1';}updateEstimate();}
+  else if(e.type==='compile-done')sub.textContent='Translation complete · optimizing WGSL';
+  else if(e.type==='trim-done'){const t=e.trim,cut=t?.beforeBytes?100*(1-t.afterBytes/t.beforeBytes):0;sub.textContent=`WGSL ${Math.round((t?.beforeBytes||0)/1024)}KB → ${Math.round((t?.afterBytes||0)/1024)}KB · -${cut.toFixed(0)}% · ${t?.removedFunctions||0} helpers removed · ${Math.round(t?.trimMs||0)}ms`;}
+  else if(e.type==='pipeline-start'){const t=e.trim,cut=t?.beforeBytes?100*(1-t.afterBytes/t.beforeBytes):0;sub.textContent=`${String(e.message||'GPU pipeline').replace(/^GPU pipeline\s*[·:]?\s*/,'')||'Creating WebGPU pipeline'} · WGSL -${cut.toFixed(0)}%`;}
+  else if(e.type==='done'){sub.textContent=e.timing?`${Number(e.lines||0).toLocaleString()} lines · ${e.message} · trim ${Math.round(e.timing.trimMs||0)}ms · pipeline ${Math.round(e.timing.pipelineMs)}ms`:String(e.message||'Complete');compileDone++;if(!row.dataset.counted){finishedLines+=Number(e.lines||0);row.dataset.counted='1';}updateEstimate();}
   state.textContent=e.type==='done'&&e.timing?Math.round(e.timing.loadOrTranslateMs+e.timing.pipelineMs)+'ms':(stateLabel[e.type]||'WORKING');
   compileCount.textContent=`${compileDone} / ${compileTotal}`;$('status').textContent=compileDone===compileTotal?'GPU programs ready':`Compiling GPU programs · ${compileDone}/${compileTotal}`;compileConsole.scrollTop=compileConsole.scrollHeight;return;
  }
