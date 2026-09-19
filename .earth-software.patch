@@ -1,12 +1,15 @@
 --- a/tools/earth/browser-test.py
 +++ b/tools/earth/browser-test.py
-@@ -14,7 +14,7 @@
+@@ -14,17 +14,17 @@
   output=ROOT/'reports'/'earth';output.mkdir(parents=True,exist_ok=True)
   try:
    async with async_playwright() as p:
 -   options={'headless':True,'args':['--enable-unsafe-webgpu','--use-angle=swiftshader','--no-sandbox']}
 +   options={'headless':True,'args':['--enable-unsafe-webgpu','--use-angle=swiftshader','--disable-gpu-watchdog','--no-sandbox']}
-@@ -22,10 +22,10 @@
+    if os.getenv('CHROMIUM_PATH'):options['executable_path']=os.environ['CHROMIUM_PATH']
+    browser=await p.chromium.launch(**options)
+    page=await browser.new_page(viewport={'width':1440,'height':900})
+    errors=[];messages=[];page.on('pageerror',lambda e:errors.append(str(e)))
     def log(m):
 -    messages.append({'type':m.type,'text':m.text});print(m.type,m.text,flush=True)
 +    messages.append({'type':m.type,'text':m.text});print(round(asyncio.get_running_loop().time(),2),m.type,m.text,flush=True)
@@ -16,6 +19,14 @@
 -    gpu=await page.evaluate('window.runEarthTests()')
 +    gpu=await asyncio.wait_for(page.evaluate('window.runEarthTests()'), timeout=180)
     except Exception as e:
-@@ -57,1 +57,1 @@
+     state=await page.evaluate('({stage:window.testStage,progress:window.testProgress,errors:window.testErrors,deviceLost:window.testLost})')
+     failure={'error':str(e),'state':state,'console':messages,'pageErrors':errors,'browser':browser.version,'launchArgs':options['args']}
+@@ -54,7 +54,7 @@
+    final=await page.evaluate('window.earth.renderer.compileCount')
+    assert initial==final==4,(initial,final)
+    assert not errors,errors
 -   report={'gpu':gpu,'browser':browser.version,'softwareAdapterRequested':True,'ui':{'starts':True,'sourceFootprintLoaded':True,'latestLocationWins':True,'programsAfterLocationChanges':final},'errors':errors,'liveProviderTest':False}
 +   report={'gpu':gpu,'browser':browser.version,'softwareAdapterRequested':True,'softwareWatchdogDisabled':True,'launchArgs':options['args'],'ui':{'starts':True,'sourceFootprintLoaded':True,'latestLocationWins':True,'programsAfterLocationChanges':final},'errors':errors,'liveProviderTest':False}
+    (output/'validation.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))
+    if '--live-smoke' in sys.argv:
+     live=await browser.new_page();await live.goto('http://localhost:8099/tests/earth/live.html');await live.wait_for_function('window.liveReady');smoke=await live.evaluate('window.liveSmoke()');(output/'live-provider-smoke.json').write_text(json.dumps(smoke,indent=2));print(json.dumps(smoke,indent=2))
