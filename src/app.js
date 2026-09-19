@@ -59,7 +59,37 @@ function toggleNotes(){const p=$('notes');p.classList.toggle('closed');}
 function action(slot,text){if(!ready)return;pulse[slot]=1;if(text)notice(text);}
 $('quality').value=String(width);$('seed-label').textContent='Loading…';$('build-label').textContent=BUILD_ID;
 const regionSelect=$('region-select');for(const r of metro.regions){const o=document.createElement('option');o.value=r.id;o.textContent=r.name;regionSelect.append(o);}regionSelect.value=region.id;
-async function switchRegion(id){if(!ready||busy||id===region.id)return;const next=regionById(metro,id);if(!next)return;busy=true;ready=false;regionSelect.disabled=true;$('boot').hidden=false;$('status').textContent='Generating '+next.name;try{const data=await loadRegion(next);await engine.setCity(data.plan,data.genome);region=next;const u=new URL(location.href);u.searchParams.set('metro',DEFAULT_METRO);u.searchParams.set('region',region.id);history.replaceState(null,'',u);$('region-label').textContent=region.name.toUpperCase();clearControls();last=0;ready=true;$('boot').hidden=true;await poll();notice(region.name+' · farmed regional genome loaded');}catch(e){fatal(e);}finally{busy=false;regionSelect.disabled=false;}}
+let requestedRegion=region.id,regionSwitching=false;
+async function switchRegion(id){
+ const next=regionById(metro,id);if(!next)return;
+ requestedRegion=id;regionSelect.value=id;
+ if(regionSwitching)return;
+ regionSwitching=true;regionSelect.disabled=true;
+ try{
+  // A dropdown change can arrive while a frame/resize owns the GPU queue. Never drop
+  // that selection: wait for the current host operation, then service the latest request.
+  while(requestedRegion!==region.id){
+   while(busy)await new Promise(r=>setTimeout(r,16));
+   const target=regionById(metro,requestedRegion);if(!target)break;
+   busy=true;ready=false;$('boot').hidden=false;$('retry').hidden=true;$('status').textContent='Generating '+target.name;$('detail').textContent='Loading shape plan + farmed genome, then rebuilding the existing GPU acceleration structure.';
+   try{
+    const data=await loadRegion(target);
+    // If the user selected another region while fetch was in flight, skip the stale rebuild.
+    if(requestedRegion!==target.id)continue;
+    await engine.setCity(data.plan,data.genome);
+    region=target;
+    const u=new URL(location.href);u.searchParams.set('metro',DEFAULT_METRO);u.searchParams.set('region',region.id);history.replaceState(null,'',u);
+    $('region-label').textContent=region.name.toUpperCase();clearControls();last=0;
+   }catch(e){
+    console.error(e);notice('Could not load '+target.name+': '+(e?.message||e));requestedRegion=region.id;regionSelect.value=region.id;break;
+   }finally{busy=false;}
+  }
+ }finally{
+  regionSwitching=false;regionSelect.disabled=false;regionSelect.value=region.id;ready=!faulted;
+  if(!faulted){$('boot').hidden=true;last=0;await poll();}
+ }
+ if(!faulted)notice(region.name+' · farmed regional genome loaded');
+}
 regionSelect.onchange=e=>switchRegion(e.target.value);
 $('quality').onchange=e=>{width=Number(e.target.value);queueResize();};
 $('info-button').onclick=toggleNotes;$('close-notes').onclick=toggleNotes;
