@@ -1,0 +1,59 @@
+name: Apply and validate compute Earth
+# One-time transport for an exact reviewed source patch on the implementation branch.
+# Payload files and this write-enabled workflow remove themselves after validation.
+on:
+  push:
+    branches: [feat/compute-earth]
+    paths: ['.earth-patch-*.b64', '.github/workflows/apply-earth.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.repository == 'SamG-Coder/STRATUM-EARTH' && github.ref == 'refs/heads/feat/compute-earth'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify and apply source patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .earth-patch-1.b64 .earth-patch-2.b64 .earth-patch-3.b64 .earth-patch-4.b64 .earth-patch-5.b64 .earth-patch-6.b64 .earth-patch-7.b64 | base64 --decode > "$RUNNER_TEMP/earth.patch.xz"
+          python -c "import lzma,os,pathlib; p=pathlib.Path(os.environ['RUNNER_TEMP']); (p/'earth.patch').write_bytes(lzma.decompress((p/'earth.patch.xz').read_bytes()))"
+          echo "2d637a76768a4f2ce9478296bfe1ebdfb40efb6bc3624660c2d1e81122b2d3bb  $RUNNER_TEMP/earth.patch" | sha256sum -c -
+          git apply --check "$RUNNER_TEMP/earth.patch"
+          git apply "$RUNNER_TEMP/earth.patch"
+      - name: Compile kernels and execute all source and native regressions
+        run: |
+          npm run build
+          npm run test:source
+          node tools/native-test.mjs
+          g++ -std=c++17 -O2 tests/earth/native.cpp -o /tmp/earth-native
+          /tmp/earth-native
+          npm run pages
+      - name: Install browser regression tools
+        run: |
+          python -m pip install playwright==1.55.0
+          python -m playwright install --with-deps chromium
+      - name: Real WebGPU regression and one live-provider smoke check
+        run: python tools/earth/browser-test.py --live-smoke
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compute-earth-implementation-validation
+          path: reports/earth/
+          retention-days: 14
+      - name: Commit verified implementation on isolated branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .earth-patch-1.b64 .earth-patch-2.b64 .earth-patch-3.b64 .earth-patch-4.b64 .earth-patch-5.b64 .earth-patch-6.b64 .earth-patch-7.b64 .github/workflows/apply-earth.yml
+          git add .github/workflows/earth-validation.yml .gitignore README.md city.html docs/city-laboratory.md docs/earth earth.css index.html kernels/earth package.json server.mjs src/compiler-stamp.js src/earth tests/earth tests/source.test.mjs tools/earth tools/pages.mjs
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Implement CUDA-only geodetic Earth with live data and constrained GPU seed farming'
+          git push origin HEAD:refs/heads/feat/compute-earth
