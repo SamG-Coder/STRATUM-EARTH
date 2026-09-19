@@ -19,16 +19,17 @@ export class KernelLoader{
  async load(entry,progress=0){
   if(this.loaded.has(entry))return this.loaded.get(entry);
   const spec=SPECS.find(s=>s.entry===entry);if(!spec)throw Error('Unknown kernel '+entry);
-  const begun=performance.now(),source=(await Promise.all(spec.dependencies.map(n=>this.text(n)))).join('\n');
+  const begun=performance.now(),source=(await Promise.all(spec.dependencies.map(n=>this.text(n)))).join('\n'),lines=source.split('\n').length,bytesLength=new TextEncoder().encode(source).byteLength;
+  this.emit({type:'queued',entry,message:'Source ready',progress,lines,bytes:bytesLength});
   const bytes=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(COMPILER_STAMP+'|'+entry+'|'+spec.workgroupSize.join(',')+'|'+source)));
   const hash=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join(''),cacheURL=new URL('../.city-shader-cache/'+hash+'.json',import.meta.url);let artifact,origin='runtime',cache=null;
   try{if(globalThis.caches)cache=await caches.open('stratum-city-shaders-v1');const hit=await cache?.match(cacheURL);if(hit){const a=await hit.json();if(a.stratumHash===hash){artifact=a;origin='browser cache';}}}catch{/* Private-mode/quota failures cannot block startup. */}
   if(!artifact){try{const r=await fetch(new URL('../generated/'+entry+'.json',import.meta.url),{cache:'no-cache'});if(r.ok){const a=await r.json();if(a.stratumHash===hash&&a.compilerStamp===COMPILER_STAMP){artifact=a;origin='verified build';}}}catch{/* generated/ is an optional boot accelerator, not a dependency. */}}
-  if(!artifact){this.emit({type:'compile-start',entry,message:'CUDA → WGSL',progress});artifact=await this.compile(source,spec);this.emit({type:'compile-done',entry,message:'WGSL ready',progress});artifact.stratumHash=hash;artifact.compilerStamp=COMPILER_STAMP;}
+  if(!artifact){this.emit({type:'compile-start',entry,message:'CUDA → WGSL',progress,lines,bytes:bytesLength});artifact=await this.compile(source,spec);this.emit({type:'compile-done',entry,message:'WGSL ready',progress,lines,bytes:bytesLength});artifact.stratumHash=hash;artifact.compilerStamp=COMPILER_STAMP;}
   if(!artifact.metadata||artifact.metadata.bindings.length>8||artifact.metadata.workgroupStorageBytes>16384)throw Error('Invalid portable shader budget for '+entry);
   try{await cache?.put(cacheURL,new Response(JSON.stringify(artifact),{headers:{'Content-Type':'application/json'}}));}catch{}
-  const translated=performance.now();this.emit({type:'pipeline-start',entry,message:'GPU pipeline · '+origin,progress});
-  const kernel=await this.runtime.kernel(artifact);this.loaded.set(entry,kernel);const timing={entry,source:origin,loadOrTranslateMs:translated-begun,pipelineMs:performance.now()-translated};this.timings.push(timing);this.emit({type:'done',entry,message:origin,progress,timing});return kernel;
+  const translated=performance.now();this.emit({type:'pipeline-start',entry,message:'GPU pipeline · '+origin,progress,lines,bytes:bytesLength});
+  const kernel=await this.runtime.kernel(artifact);this.loaded.set(entry,kernel);const timing={entry,source:origin,loadOrTranslateMs:translated-begun,pipelineMs:performance.now()-translated};this.timings.push(timing);this.emit({type:'done',entry,message:origin,progress,timing,lines,bytes:bytesLength});return kernel;
  }
  dispose(){for(const w of this.workers)w.terminate();this.workers=[];for(const p of this.pending.values())p.reject(Error('Compiler disposed'));this.pending.clear();}
 }
