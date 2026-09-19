@@ -5,7 +5,7 @@
   try:
    async with async_playwright() as p:
 -   options={'headless':True,'args':['--enable-unsafe-webgpu','--use-angle=swiftshader','--no-sandbox']}
-+   options={'headless':True,'args':['--enable-unsafe-webgpu','--use-angle=swiftshader','--disable-gpu-watchdog','--no-sandbox']}
++   options={'headless':True,'channel':'chromium','args':['--enable-unsafe-webgpu','--use-angle=swiftshader','--no-sandbox']}
     if os.getenv('CHROMIUM_PATH'):options['executable_path']=os.environ['CHROMIUM_PATH']
     browser=await p.chromium.launch(**options)
     page=await browser.new_page(viewport={'width':1440,'height':900})
@@ -26,7 +26,7 @@
     assert initial==final==4,(initial,final)
     assert not errors,errors
 -   report={'gpu':gpu,'browser':browser.version,'softwareAdapterRequested':True,'ui':{'starts':True,'sourceFootprintLoaded':True,'latestLocationWins':True,'programsAfterLocationChanges':final},'errors':errors,'liveProviderTest':False}
-+   report={'gpu':gpu,'browser':browser.version,'softwareAdapterRequested':True,'softwareWatchdogDisabled':True,'launchArgs':options['args'],'ui':{'starts':True,'sourceFootprintLoaded':True,'latestLocationWins':True,'programsAfterLocationChanges':final},'errors':errors,'liveProviderTest':False}
++   report={'gpu':gpu,'browser':browser.version,'softwareAdapterRequested':True,'browserChannel':options['channel'],'launchArgs':options['args'],'ui':{'starts':True,'sourceFootprintLoaded':True,'latestLocationWins':True,'programsAfterLocationChanges':final},'errors':errors,'liveProviderTest':False}
     (output/'validation.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))
     if '--live-smoke' in sys.argv:
      live=await browser.new_page();await live.goto('http://localhost:8099/tests/earth/live.html');await live.wait_for_function('window.liveReady');smoke=await live.evaluate('window.liveSmoke()');(output/'live-provider-smoke.json').write_text(json.dumps(smoke,indent=2));print(json.dumps(smoke,indent=2))
