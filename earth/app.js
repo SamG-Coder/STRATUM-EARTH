@@ -5,14 +5,19 @@ import {Normalizer} from './worker-client.js';
 import {DetailFarmer} from './gpu-farm.js';
 import {tileAt,neighbors} from './tiles.js';
 const $=id=>document.getElementById(id),cache=new TileCache(),normalizer=new Normalizer(),farmer=new DetailFarmer();
-let provider=new EarthProvider({cache}),renderer,selection,view,selectedLocation=null,ready=false,autoTimer,activeKey=null;
+let provider=new EarthProvider({cache}),renderer,selection,view,selectedLocation=null,ready=false,autoTimer,activeKey=null,lastStreamKey=null,lastView=null;
 const fmt=n=>Number(n).toLocaleString(undefined,{maximumFractionDigits:0});
 const size=n=>n<1024?`${n} B`:n<1048576?`${(n/1024).toFixed(1)} KB`:`${(n/1048576).toFixed(2)} MB`;
 const places={melbourne:[-37.8136,144.9631],newyork:[40.7484,-73.9857],tokyo:[35.6812,139.7671],paris:[48.8584,2.2945],rural:[-36.613,143.255]};
 function log(message,type='info') {const row=document.createElement('div'),time=document.createElement('time'),text=document.createElement('span');row.className=type;time.textContent=new Date().toLocaleTimeString([], {hour12:false});text.textContent=message;row.append(time,text);$('events').prepend(row);while($('events').children.length>35)$('events').lastChild.remove();}
 function status(phase,message){$('phase').textContent=phase.toUpperCase();$('status').textContent=message;$('status-light').className=phase==='error'?'error':phase==='ready'?'ready':'working';}
 function updateView(v){view=v;document.body.classList.toggle('local-view',v.distance<20000);$('latitude').textContent=v.lat.toFixed(5)+'°';$('longitude').textContent=v.lon.toFixed(5)+'°';$('distance').textContent=v.distance>1000?(v.distance/1000).toFixed(1)+' km':v.distance.toFixed(0)+' m';const t=tileAt(v.lat,v.lon);$('tile-id').textContent=t.key;$('scale-name').textContent=v.distance>500000?'PLANETARY':v.distance>20000?'REGIONAL':v.distance>1200?'NEIGHBORHOOD':'LOCAL';
-  clearTimeout(autoTimer);if(ready && $('automatic').checked && provider.automaticAllowed && v.distance<10000 && t.key!==activeKey)autoTimer=setTimeout(()=>loadArea(false),1100);
+  clearTimeout(autoTimer);
+  if(ready && $('automatic').checked && v.distance<12000 && t.key!==lastStreamKey){
+    const moved=!lastView||tileAt(lastView.lat,lastView.lon).key!==t.key;
+    if(moved){lastStreamKey=t.key;autoTimer=setTimeout(()=>loadArea(false),provider.publicDemo?850:140);}
+  }
+  lastView={lat:v.lat,lon:v.lon,distance:v.distance};
 }
 function navigate(lat,lon,distance=1600){selection?.cancel();selectedLocation=null;renderer.goTo(lat,lon,distance);$('coord-lat').value=Number(lat).toFixed(6);$('coord-lon').value=Number(lon).toFixed(6);log('Navigating to '+lat.toFixed(4)+', '+lon.toFixed(4)+'. Geography is not fabricated while waiting.');}
 function showFeature(pick){
@@ -27,10 +32,10 @@ function updateStats(){const a=renderer.active?.userData,buildings=a?.features.f
 }
 async function loadArea(manual=true){
  if(!ready)return;
- if(!manual && !provider.automaticAllowed)return;
+ if(!manual && !$('automatic').checked)return;
  if(view.distance>20000){status('ready','Descend to a neighborhood before loading detailed geography.');log('Detail load paused at regional/orbit scale.','warn');return;}
- const t=tileAt(view.lat,view.lon);if(!manual&&t.key===activeKey)return;const batch=provider.automaticAllowed?neighbors(t):[t];
- const result=await selection.select({tile:t,tiles:batch,provider},{manual});
+ const t=tileAt(view.lat,view.lon);if(!manual&&t.key===activeKey)return;const batch=provider.publicDemo?[t]:neighbors(t);
+ const result=await selection.select({tile:t,tiles:batch,provider},{manual:manual||provider.publicDemo});
  if(result.status==='ready'){activeKey=t.key;updateStats();const source=result.value.areas[0].descriptor.source;$('source-time').textContent=source.snapshot||'snapshot timestamp not supplied';log(`Ready: ${renderer.active.userData.features.length} mapped features. Detail-farm pipeline reused.`,'success');}
  else if(result.status==='error')log(result.error.message,'error');
 }
@@ -55,7 +60,7 @@ async function start(){try{
   commit:root=>renderer.commit(root),discard:root=>renderer.discard(root),
   onState:s=>{ $('cancel-load').hidden=!['loading','generating'].includes(s.phase);if(s.phase==='ready')status('ready','Mapped geometry loaded. Generated appearance is labelled.');if(s.phase==='error')status('error',s.error.message+' Previous area retained.');if(s.phase==='idle')status('ready','Request cancelled; previous area retained.');}
  });
- ready=true;$('load-area').disabled=false;$('go').disabled=false;status('ready','Choose a location, descend, and load its mapped geography.');updateStats();log('Earth coordinate system ready · WGS84 ellipsoid · metres.','success');
+ ready=true;$('load-area').disabled=false;$('go').disabled=false;$('automatic').disabled=false;$('automatic').checked=true;status('ready','Fly anywhere. Nearby mapped geography streams and regenerates as you move.');updateStats();log('Earth coordinate system ready · WGS84 ellipsoid · metres.','success');
  window.stratumEarth={renderer,farmer,cache,normalizer,get provider(){return provider;},selection,loadArea,navigate,stats:()=>({backend:renderer.backend,farm:farmer.mode,frames:renderer.drawCount,tiles:renderer.tiles.size,features:renderer.active?.userData.features.length||0,network:{...provider.stats}})};
  const query=new URLSearchParams(location.search);if(query.has('lat')&&query.has('lon')){const lat=Number(query.get('lat')),lon=Number(query.get('lon'));if(Number.isFinite(lat)&&Math.abs(lat)<=90&&Number.isFinite(lon))navigate(lat,lon,1600);}
 }catch(e){status('error',e.message);log(e.stack||e.message,'error');$('startup-help').hidden=false;}}
@@ -63,9 +68,9 @@ for(const b of document.querySelectorAll('[data-place]'))b.onclick=()=>{if(ready
 $('globe').onclick=()=>{if(ready){selection.cancel();renderer.goTo(view.lat,view.lon,14000000);}};
 $('coordinates').onsubmit=e=>{e.preventDefault();if(!ready)return;try{const lat=Number($('coord-lat').value),lon=Number($('coord-lon').value);if(!$('coord-lat').value.trim()||!$('coord-lon').value.trim()||!Number.isFinite(lat)||Math.abs(lat)>90||!Number.isFinite(lon)||Math.abs(lon)>180)throw new Error('Latitude must be -90..90 and longitude -180..180.');navigate(lat,lon);const url=new URL(location.href);url.searchParams.set('lat',lat);url.searchParams.set('lon',lon);history.replaceState(null,'',url);}catch(e){status('error',e.message);}};
 $('load-area').onclick=()=>loadArea(true);$('cancel-load').onclick=()=>selection?.cancel();
-$('provider-form').onsubmit=e=>{e.preventDefault();try{selection?.cancel();const endpoint=$('provider-url').value.trim(),kind=$('provider-kind').value;const next=new EarthProvider({endpoint,kind,cache,minInterval:kind==='tiles'?100:3000});provider=next;activeKey=null;$('automatic').checked=false;$('automatic').disabled=!next.automaticAllowed;$('provider-note').textContent=next.automaticAllowed?'Your tile endpoint must serve Overpass geometry JSON on the geographic g/z/x/y grid. Automatic visible-neighborhood streaming is available.':'Public Overpass: explicit neighborhood requests only. No bulk download, background crawl, endpoint hopping or unlimited streaming.';status('ready','Provider updated.');log('Provider set to '+kind+' · '+new URL(endpoint).host);}catch(error){status('error',error.message);}};
+$('provider-form').onsubmit=e=>{e.preventDefault();try{selection?.cancel();const endpoint=$('provider-url').value.trim(),kind=$('provider-kind').value;const next=new EarthProvider({endpoint,kind,cache,minInterval:kind==='tiles'?100:3000});provider=next;activeKey=null;$('automatic').checked=true;$('automatic').disabled=false;lastStreamKey=null;$('provider-note').textContent=next.publicDemo?'Public Overpass flight streaming is conservative: one bounded tile at a time, cached locally and rate-limited. A dedicated tile endpoint enables faster 3×3 predictive streaming.':'Your tile endpoint serves the geographic g/z/x/y grid. Fast 3×3 flight streaming is enabled.';status('ready','Provider updated.');log('Provider set to '+kind+' · '+new URL(endpoint).host);}catch(error){status('error',error.message);}};
 $('provider-url').value=OVERPASS_ENDPOINT;
-$('automatic').onchange=()=>{if($('automatic').checked)loadArea(false);};
+$('automatic').onchange=()=>{lastStreamKey=null;if($('automatic').checked)loadArea(false);};
 $('source-colors').onchange=e=>renderer?.setProvenance(e.target.checked);
 $('clear-cache').onclick=async()=>{await cache.clear();log('Local geographic cache cleared.');updateStats();};
 $('export-area').onclick=()=>{if(renderer?.active)download({schema:'stratum.earth-export.v1',license:'ODbL-1.0',attribution:'© OpenStreetMap contributors',notice:'Source geometry and generated details are separate. No terrain elevation or landmark reconstruction.',areas:renderer.active.userData.areas},'stratum-earth-area.json');};
