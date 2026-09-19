@@ -16,15 +16,20 @@ jobs:
           node-version: 22
       - name: Snapshot tracked base
         run: git archive --format=tar HEAD | gzip > earth-base.tar.gz
-      - name: Fetch pinned renderer dependencies for development
+      - name: Fetch pinned renderer and test dependencies
         run: |
           mkdir -p .workbench
-          npm install --prefix .workbench --ignore-scripts --no-audit --no-fund three@0.180.0 earcut@3.0.2
+          echo '{"name":"stratum-earth","version":"0.4.0","type":"module","private":true,"dependencies":{"earcut":"3.0.2","three":"0.180.0","world-atlas":"2.0.2"},"devDependencies":{"playwright":"1.56.1"}}' > .workbench/package.json
+          npm install --prefix .workbench --ignore-scripts --no-audit --no-fund
           tar -czf earth-dependencies.tar.gz -C .workbench node_modules package-lock.json package.json
+      - name: One bounded manual geography smoke sample (no retries)
+        run: |
+          curl --fail --silent --show-error --max-time 40 -A 'STRATUM-EARTH-development/0.4 (+https://github.com/SamG-Coder/STRATUM-EARTH)' --data-urlencode 'data=[out:json][timeout:25][maxsize:16777216];(way["building"](-37.817,144.960,-37.811,144.968);relation["type"="multipolygon"]["building"](-37.817,144.960,-37.811,144.968);way["highway"](-37.817,144.960,-37.811,144.968);way["leisure"="park"](-37.817,144.960,-37.811,144.968););out meta geom;' https://overpass-api.de/api/interpreter -o live-osm.json || { rm -f live-osm.json; echo 'Live provider unavailable; tests will use explicitly synthetic fixtures.'; }
       - uses: actions/upload-artifact@v4
         with:
           name: earth-development-snapshot
           path: |
             earth-base.tar.gz
             earth-dependencies.tar.gz
+            live-osm.json
           retention-days: 7
