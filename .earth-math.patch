@@ -1,0 +1,60 @@
+--- a/kernels/earth/common.cu
++++ b/kernels/earth/common.cu
+@@ -13,7 +13,14 @@
+  float u=(2.0f*((float)x+.5f)/(float)width-1.0f)*C[11]*C[7],v=(1.0f-2.0f*((float)y+.5f)/(float)height)*C[7];
+  return eNorm(eLoad3(C,4+offset)+eLoad3(C,8+offset)*u+eLoad3(C,12+offset)*v);
+ }
+-__device__ unsigned int ePack(float3 c){c=make_float3(powf(eSat(c.x),.454545f),powf(eSat(c.y),.454545f),powf(eSat(c.z),.454545f));return (unsigned int)(c.x*255.0f)|((unsigned int)(c.y*255.0f)<<8)|((unsigned int)(c.z*255.0f)<<16)|4278190080u;}
++// Rendering-only float32 powers: do not invoke the compiler's exact powf/f64 path.
++__device__ float eSquare(float x){return x*x;}
++__device__ float eCube(float x){return x*x*x;}
++__device__ float eFourth(float x){float y=x*x;return y*y;}
++__device__ float ePow80(float x){float x2=x*x,x4=x2*x2,x8=x4*x4,x16=x8*x8,x32=x16*x16,x64=x32*x32;return x64*x16;}
++__device__ float ePow128(float x){float x2=x*x,x4=x2*x2,x8=x4*x4,x16=x8*x8,x32=x16*x16,x64=x32*x32;return x64*x64;}
++__device__ float eGamma(float x){x=eSat(x);return x>0?expf(logf(x)*.454545f):0.0f;}
++__device__ unsigned int ePack(float3 c){c=make_float3(eGamma(c.x),eGamma(c.y),eGamma(c.z));return (unsigned int)(c.x*255.0f)|((unsigned int)(c.y*255.0f)<<8)|((unsigned int)(c.z*255.0f)<<16)|4278190080u;}
+ __device__ float eInv(float x){return fabsf(x)>.00000001f?1.0f/x:(x<0?-1.0e20f:1.0e20f);}
+ __device__ float2 eBox(float3 ro,float3 rd,float3 lo,float3 hi){
+  float3 a=(lo-ro)*make_float3(eInv(rd.x),eInv(rd.y),eInv(rd.z)),b=(hi-ro)*make_float3(eInv(rd.x),eInv(rd.y),eInv(rd.z));
+--- a/kernels/earth/globe.cu
++++ b/kernels/earth/globe.cu
+@@ -5,15 +5,15 @@
+ __device__ float3 eGlobe(const float* C,const unsigned int* Land,float3 rd){
+  float3 ro=eLoad3(C,16),o=make_float3(ro.x,ro.y,ro.z/0.996647189335f),d=make_float3(rd.x,rd.y,rd.z/0.996647189335f);
+  float a=eDot(d,d),b=eDot(o,d),cc=eDot(o,o)-1,disc=b*b-a*cc;
+- float3 sun=eLoad3(C,32),space=make_float3(.0018f,.003f,.007f);float glow=powf(fmaxf(0,eDot(rd,sun)),128.0f);
++ float3 sun=eLoad3(C,32),space=make_float3(.0018f,.003f,.007f);float glow=ePow128(fmaxf(0,eDot(rd,sun)));
+  if(disc<0){float edge=expf(-fabsf(disc)*90.0f);return space+make_float3(.025f,.12f,.22f)*edge+make_float3(.4f,.32f,.2f)*glow;}
+  float t=(-b-sqrtf(disc))/a;if(t<0)t=(-b+sqrtf(disc))/a;if(t<=0)return space;
+  float3 p=ro+rd*t,n=eNorm(make_float3(p.x,p.y,p.z/(.996647189335f*.996647189335f)));float lat=atan2f(n.z,sqrtf(n.x*n.x+n.y*n.y)),lon=atan2f(p.y,p.x),land=eLand(Land,lat,lon);
+- float k=eNoise(lon*12,lat*12),polar=eSat((fabsf(lat)-1.1f)*4),arid=expf(-powf((fabsf(lat)-.48f)*5,2.0f));
++ float k=eNoise(lon*12,lat*12),polar=eSat((fabsf(lat)-1.1f)*4),arid=expf(-eSquare((fabsf(lat)-.48f)*5));
+  float3 landColor=eMix(make_float3(.075f,.16f,.11f),make_float3(.29f,.24f,.14f),arid*.75f+k*.25f);landColor=eMix(landColor,make_float3(.75f,.83f,.84f),polar);
+  float3 color=eMix(make_float3(.009f,.042f,.075f),landColor,land);if(C[23]<.5f)color=make_float3(.065f,.085f,.10f);
+- float day=fmaxf(0,eDot(n,sun)),rim=powf(1-fmaxf(0,eDot(n,rd*(-1.0f))),3.0f);color=color*(.12f+day*.94f);color=color+make_float3(.025f,.16f,.30f)*rim*(.2f+day);
+- if(land<.5f&&C[23]>.5f){float3 reflected=n*(2*eDot(n,sun))-sun;color=color+make_float3(.25f,.29f,.3f)*powf(fmaxf(0,eDot(reflected,rd*(-1.0f))),80.0f);}
++ float day=fmaxf(0,eDot(n,sun)),rim=eCube(1-fmaxf(0,eDot(n,rd*(-1.0f))));color=color*(.12f+day*.94f);color=color+make_float3(.025f,.16f,.30f)*rim*(.2f+day);
++ if(land<.5f&&C[23]>.5f){float3 reflected=n*(2*eDot(n,sun))-sun;color=color+make_float3(.25f,.29f,.3f)*ePow80(fmaxf(0,eDot(reflected,rd*(-1.0f))));}
+  if(C[27]>.5f){float grid=fminf(fabsf(sinf(lon*18)),fabsf(sinf(lat*18)));if(grid<.035f)color=eMix(color,make_float3(.18f,.7f,.65f),.6f);}
+  return color;
+ }
+--- a/kernels/earth/surface.cu
++++ b/kernels/earth/surface.cu
+@@ -40,7 +40,7 @@
+  if(hit.t<E_FAR){float3 p=ro+rd*hit.t,base=make_float3(.17f,.21f,.15f);float shade=.25f+.75f*fmaxf(0,eDot(hit.normal,eLoad3(C,36)));
+   if(hit.object>=0){int i=hit.object,b=i*16,g=i*8;pick=(unsigned int)i+1u;base=make_float3(Genomes[g+4],Genomes[g+5],Genomes[g+6]);
+    if(fabsf(hit.normal.y)<.5f){float tangent=fabsf(hit.normal.x)>.5f?p.z:p.x,u=eFract(tangent/Genomes[g+1]),v=eFract((p.y-Objects[b+13])/Genomes[g+2]);float footprint=hit.t*C[7]*2/(float)height;
+-    if(footprint<2.0f&&u>.14f&&u<.8f&&v>.20f&&v<.83f){base=make_float3(.055f,.13f,.19f);float fres=powf(1-fabsf(eDot(hit.normal,rd)),4);base=base+make_float3(.13f,.22f,.29f)*fres;}
++    if(footprint<2.0f&&u>.14f&&u<.8f&&v>.20f&&v<.83f){base=make_float3(.055f,.13f,.19f);float fres=eFourth(1-fabsf(eDot(hit.normal,rd)));base=base+make_float3(.13f,.22f,.29f)*fres;}
+    }else base=base*.72f;
+    if(C[19]>.5f)base=Objects[b+6]>0?make_float3(.03f,.5f,.35f):make_float3(.75f,.32f,.06f);
+   }else{
+--- a/tests/earth/compiler.test.mjs
++++ b/tests/earth/compiler.test.mjs
+@@ -1,5 +1,5 @@
+ import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';import {compile} from '../../vendor/cuda-webshader/compiler/compiler.js';import {EARTH_SPECS,earthOptions} from '../../src/earth/kernel-specs.js';import {EARTH_BUILD} from '../../src/earth/build-id.js';
+ const root=new URL('../../',import.meta.url);
+-for(const spec of EARTH_SPECS)test('CUDA source, generated artifact and binding budget: '+spec.entry,async()=>{const source=(await Promise.all(spec.units.map(n=>fs.readFile(new URL('kernels/earth/'+n+'.cu',root),'utf8')))).join('\n'),a=compile(source,earthOptions(spec)),saved=JSON.parse(await fs.readFile(new URL('generated/earth/'+spec.entry+'.json',root),'utf8'));assert.equal(a.wgsl,saved.wgsl);assert.equal(saved.earthBuild,EARTH_BUILD);assert.ok(a.metadata.bindings.length<=8);assert.ok(a.wgsl.includes('@compute'));});
++for(const spec of EARTH_SPECS)test('CUDA source, generated artifact and binding budget: '+spec.entry,async()=>{const source=(await Promise.all(spec.units.map(n=>fs.readFile(new URL('kernels/earth/'+n+'.cu',root),'utf8')))).join('\n'),a=compile(source,earthOptions(spec)),saved=JSON.parse(await fs.readFile(new URL('generated/earth/'+spec.entry+'.json',root),'utf8'));assert.equal(a.wgsl,saved.wgsl);assert.equal(saved.earthBuild,EARTH_BUILD);assert.ok(a.metadata.bindings.length<=8);assert.ok(a.wgsl.includes('@compute'));assert.doesNotMatch(a.wgsl,/cw_d_|cw_pow_f32/,'Earth shading must not pull in software f64');});
+ test('Earth path has no scene graph, mesh/raster pipeline or third-party 3D dependency',async()=>{for(const name of await fs.readdir(new URL('src/earth/',root))){if(!name.endsWith('.js'))continue;const s=await fs.readFile(new URL('src/earth/'+name,root),'utf8');assert.doesNotMatch(s,/from\s+['"]three|BufferGeometry|createRenderPipeline|\.glb\b|\.gltf\b/);}const p=JSON.parse(await fs.readFile(new URL('package.json',root)));assert.ok(!p.dependencies?.three);});
+ test('all Earth host and worker modules parse as JavaScript',async()=>{const {spawnSync}=await import('node:child_process');const dir=new URL('src/earth/',root);for(const name of await fs.readdir(dir)){if(!name.endsWith('.js'))continue;const {fileURLToPath}=await import('node:url');const r=spawnSync(process.execPath,['--check',fileURLToPath(new URL(name,dir))],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);}});
