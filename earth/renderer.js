@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import {attribute,uniform,vec3,vec2,float,fract,abs,smoothstep,mix,fwidth} from 'three/tsl';
 import {localFrame,toECEF,fromECEF,WGS84,B,intersectEllipsoid,moveOnSurface,clamp} from './geodesy.js';
-import {makeGeometry,mergeTiles,tileFrame} from './geometry.js';
+import {makeGeometry,mergeTiles} from './geometry.js';
+import {neighbors} from './tiles.js';
 import {overviewCanvas} from './overview.js';
 import {throwIfAborted} from './provider.js';
 const rad=Math.PI/180;
@@ -14,7 +15,12 @@ export class EarthRenderer {
   Object.assign(this,{canvas,onView,onPick,onError});this.view={lat:-22,lon:130,distance:14000000,bearing:0,pitch:80};this.targetView=null;this.frame=localFrame(this.view.lat,this.view.lon);this.tiles=new Map();this.active=null;this.controls=new Set();this.drag=null;this.last=0;this.needsSurface=true;this.disposed=false;this.provenance=uniform(0);this.drawCount=0;
  }
  async init(){
-  this.renderer=new THREE.WebGPURenderer({canvas:this.canvas,antialias:true,alpha:false});await this.renderer.init();this.backend=this.renderer.backend.isWebGPUBackend?'WebGPU':'WebGL2 fallback';
+  const options={canvas:this.canvas,antialias:true,alpha:false};
+  // Keep the complete GPU/adapter/device lifetime owned by the viewer and request
+  // only baseline features used by this renderer, not every advertised extension.
+  try{this.gpu=navigator.gpu;if(!this.gpu)throw new Error('WebGPU unavailable');this.adapter=await this.gpu.requestAdapter({powerPreference:'high-performance'});if(!this.adapter)throw new Error('No WebGPU adapter');this.device=await this.adapter.requestDevice();options.device=this.device;}catch{options.forceWebGL=true;}
+  this.renderer=new THREE.WebGPURenderer(options);await this.renderer.init();this.backend=this.renderer.backend.isWebGPUBackend?'WebGPU':'WebGL2 fallback';
+  const lost=this.renderer.onDeviceLost.bind(this.renderer);this.renderer.onDeviceLost=info=>{lost(info);if(!this.disposed){this.renderFailure=new Error('Render device lost: '+info.message);this.onError(this.renderFailure);}};
   this.renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));this.renderer.toneMapping=THREE.AgXToneMapping;this.renderer.toneMappingExposure=1.35;
   this.scene=new THREE.Scene();this.scene.background=new THREE.Color('#08121c');this.camera=new THREE.PerspectiveCamera(48,1,1,50000000);
   this.scene.add(new THREE.HemisphereLight('#c4e5ee','#273628',3));this.sun=new THREE.DirectionalLight('#fff0d3',3);this.sun.position.set(-5000,8000,4000);this.scene.add(this.sun);
@@ -27,7 +33,7 @@ export class EarthRenderer {
   const mat=new THREE.MeshStandardMaterial({color:'#a4bcbb',roughness:.95,side:THREE.DoubleSide});this.globe=new THREE.Mesh(g,mat);this.globe.matrixAutoUpdate=false;this.globe.frustumCulled=false;this.scene.add(this.globe);
   try{this.map=new THREE.CanvasTexture(await overviewCanvas());this.map.colorSpace=THREE.SRGBColorSpace;mat.map=this.map;mat.needsUpdate=true;}catch(e){this.onError(e);}
   this.marker=new THREE.Mesh(new THREE.SphereGeometry(1,16,8),new THREE.MeshBasicMaterial({color:'#a1f0d4'}));this.scene.add(this.marker);
-  this.bindControls();this.resize();this.updateView();this.renderer.setAnimationLoop(now=>this.tick(now));return this;
+  this.bindControls();this.resize();this.updateView();this.renderer.render(this.scene,this.camera);await this.renderer.waitForGPU();if(this.renderFailure)throw this.renderFailure;this.renderer.setAnimationLoop(now=>this.tick(now));return this;
  }
  facadeMaterial(){
   const material=new THREE.MeshStandardNodeMaterial({roughness:.78,side:THREE.DoubleSide});
@@ -74,7 +80,7 @@ export class EarthRenderer {
   }
   this.surfaceMaterial??=new THREE.MeshStandardMaterial({color:'#283b3e',roughness:1,side:THREE.DoubleSide});this.surface=new THREE.Mesh(geometry(new Float32Array(points)),this.surfaceMaterial);this.surface.userData={frame:this.frame,extent};this.surface.matrixAutoUpdate=false;this.surface.frustumCulled=false;this.scene.add(this.surface);
  }
- tick(now){if(this.disposed)return;const dt=Math.min(.05,(now-(this.last||now))/1000);this.last=now;
+ tick(now){if(this.disposed||this.renderFailure)return;const dt=Math.min(.05,(now-(this.last||now))/1000);this.last=now;
   if(this.targetView){const t=this.targetView,k=1-Math.exp(-dt*5),diff=((t.lon-this.view.lon+540)%360)-180;this.view.lat+=(t.lat-this.view.lat)*k;this.view.lon+=diff*k;this.view.distance=Math.exp(Math.log(this.view.distance)+(Math.log(t.distance)-Math.log(this.view.distance))*k);this.view.pitch+=(t.pitch-this.view.pitch)*k;this.view.bearing+=(t.bearing-this.view.bearing)*k;
     if(Math.abs(diff)<1e-6&&Math.abs(t.lat-this.view.lat)<1e-6&&Math.abs(t.distance-this.view.distance)<.5){Object.assign(this.view,t);this.targetView=null;}this.updateView();}
   if(this.controls.size){const fast=this.controls.has('ShiftLeft')||this.controls.has('ShiftRight')?4:1,speed=Math.max(3,this.view.distance*.5)*dt*fast,has=k=>Number(this.controls.has(k));this.pan((has('KeyD')-has('KeyA'))*speed,(has('KeyW')-has('KeyS'))*speed);if(has('KeyQ')||has('KeyE')){this.view.distance=clamp(this.view.distance+(has('KeyE')-has('KeyQ'))*speed,8,26000000);this.updateView();}}
@@ -84,7 +90,8 @@ export class EarthRenderer {
   throwIfAborted(signal);const tiles=new Map(this.tiles);for(const a of areas)tiles.set(a.descriptor.tile.key,a);
   const focus=requestedFocus||areas.at(-1)?.descriptor.tile;if(!focus)throw new Error('No geographic areas to display');
   const origin=toECEF(focus.lat,focus.lon);const distance=a=>Math.hypot(...toECEF(a.descriptor.tile.lat,a.descriptor.tile.lon).map((v,i)=>v-origin[i]));
-  const kept=[...tiles.values()].sort((a,b)=>distance(a)-distance(b)).slice(0,9);const merged=mergeTiles(kept),frame=localFrame(focus.lat,focus.lon);
+  const localKeys=new Set(neighbors(focus).map(t=>t.key));
+  const kept=[...tiles.values()].filter(a=>localKeys.has(a.descriptor.tile.key)).sort((a,b)=>distance(a)-distance(b)).slice(0,9);const merged=mergeTiles(kept),frame=localFrame(focus.lat,focus.lon);
   if(merged.features.length>20000)throw new Error('Resident feature budget exceeded; load fewer adjacent tiles.');
   await new Promise(r=>setTimeout(r,0));throwIfAborted(signal);
   const data=makeGeometry(merged.features,merged.details,frame),root=new THREE.Group();root.matrixAutoUpdate=false;root.userData={frame,tiles:new Map(kept.map(a=>[a.descriptor.tile.key,a])),...merged,areas:kept};
@@ -102,5 +109,5 @@ export class EarthRenderer {
   if(hit){const g=fromECEF(hit);this.onPick({location:g});}
  }
  setProvenance(on){this.provenance.value=on?1:0;}
- dispose(){this.disposed=true;this.renderer.setAnimationLoop(null);this.abortListeners.abort();disposeObject(this.active);disposeObject(this.surface);this.globe.geometry.dispose();this.globe.material.dispose();this.marker.geometry.dispose();this.marker.material.dispose();this.map?.dispose();this.buildingMaterial.dispose();this.surfaceMaterial?.dispose();Object.values(this.materials).forEach(m=>m.dispose());this.renderer.dispose();}
+ dispose(){this.disposed=true;this.renderer.setAnimationLoop(null);this.abortListeners.abort();disposeObject(this.active);disposeObject(this.surface);this.globe.geometry.dispose();this.globe.material.dispose();this.marker.geometry.dispose();this.marker.material.dispose();this.map?.dispose();this.buildingMaterial.dispose();this.surfaceMaterial?.dispose();Object.values(this.materials).forEach(m=>m.dispose());this.renderer.dispose();this.device?.destroy();}
 }
