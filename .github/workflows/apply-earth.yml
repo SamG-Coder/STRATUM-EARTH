@@ -3,7 +3,7 @@ name: Apply and validate compute Earth
 on:
   push:
     branches: [feat/compute-earth]
-    paths: ['.earth-patch-*.b64', '.earth-diagnostics.patch', '.earth-math.patch', '.github/workflows/apply-earth.yml']
+    paths: ['.earth-patch-*.b64', '.earth-*.patch', '.github/workflows/apply-earth.yml']
 permissions:
   contents: write
 jobs:
@@ -32,6 +32,8 @@ jobs:
           git apply .earth-diagnostics.patch
           git apply --check .earth-math.patch
           git apply .earth-math.patch
+          git apply --check .earth-software.patch
+          git apply .earth-software.patch
       - name: Compile kernels and execute all source and native regressions
         run: |
           npm run build
@@ -45,6 +47,8 @@ jobs:
           python -m pip install playwright==1.55.0
           python -m playwright install --with-deps chromium
       - name: Real WebGPU regression and one live-provider smoke check
+        env:
+          DEBUG: pw:browser
         run: python tools/earth/browser-test.py --live-smoke
       - uses: actions/upload-artifact@v4
         if: always()
