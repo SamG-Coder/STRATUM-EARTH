@@ -9,11 +9,16 @@ export class Engine{
   [this.plan,this.genome]=await Promise.all([plan||fetchJSON(new URL('../cities/manhattan.plan.json',import.meta.url)),genome||fetchJSON(new URL('../cities/manhattan.genome.json',import.meta.url))]);this.planData=encodePlan(this.plan);this.genes=validateGenomeFile(this.genome);
   if(!device){if(!navigator.gpu)throw Error('WebGPU requires a supported browser on localhost or HTTPS.');adapter=await navigator.gpu.requestAdapter({powerPreference:'high-performance'});if(!adapter)throw Error('No WebGPU adapter available.');device=await adapter.requestDevice({requiredFeatures:adapter.features.has('timestamp-query')?['timestamp-query']:[]});}
   this.device=device;this.adapter=adapter;this.runtime=new GpuRuntime(device,{adapter,ownsDevice,uniformCapacity:262144,onError:e=>{this.errors.push(String(e?.message||e));onError(e);}});this.info=this.runtime.describe();this.context=this.canvas?.getContext('webgpu')??null;
-  this.loader=new KernelLoader(this.runtime,onProgress);for(let i=0;i<RENDER_SPECS.length;i++){const s=RENDER_SPECS[i];this.kernels[s.entry]=await this.loader.load(s.entry,.03+.57*i/RENDER_SPECS.length);}
+  this.loader=new KernelLoader(this.runtime,onProgress);
+  // Kernel compilation is independent. Translate/create pipelines concurrently; the runtime
+  // and browser are free to schedule native shader compilation in parallel too.
+  onProgress({type:'phase',message:'Compiling '+RENDER_SPECS.length+' GPU programs',progress:.03});
+  const loaded=await Promise.all(RENDER_SPECS.map((spec,i)=>this.loader.load(spec.entry,.03+.57*(i+1)/RENDER_SPECS.length)));
+  for(let i=0;i<RENDER_SPECS.length;i++)this.kernels[RENDER_SPECS[i].entry]=loaded[i];
   const a=ABI,sizes={World:a.WORLD_LOTS*a.LOT_FLOATS,Nodes:a.WORLD_LOTS*a.GROUP_NODES*8,G:12,Plan:320,C:64,I:32,Queue:a.WORLD_LOTS+1,Args:a.BUILD_CHUNKS*21};
   for(const [name,count]of Object.entries(sizes))this.buffers[name]=this.runtime.createBuffer(count*4,{label:'CITY '+name,usage:name==='Args'?GPUBufferUsage.INDIRECT:0});this.runtime.write(this.buffers.G,this.genes);this.runtime.write(this.buffers.Plan,this.planData);
   if(device.features.has('timestamp-query')){this.queries=device.createQuerySet({type:'timestamp',count:10});this.queryResolve=device.createBuffer({size:256,usage:GPUBufferUsage.QUERY_RESOLVE|GPUBufferUsage.COPY_SRC});this.queryRead=device.createBuffer({size:80,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});}
-  await this.resize(width,height);this.runtime.batch().dispatch(this.bind('initCamera',{seed:this.genes[0],interiorSeed:this.genes[10]}),[1]).submit();await this.runtime.idle();if(warmup)await this.rebuild();onProgress('Ready',1);return this;
+  await this.resize(width,height);this.runtime.batch().dispatch(this.bind('initCamera',{seed:this.genes[0],interiorSeed:this.genes[10]}),[1]).submit();await this.runtime.idle();if(warmup)await this.rebuild();onProgress({type:'ready',message:'Ready',progress:1});return this;
  }
  bind(name,scalars={}){const k=this.kernels[name];if(!k)throw Error('Unknown kernel '+name);return k.bind(Object.fromEntries(k.artifact.metadata.bindings.map(b=>{if(!this.buffers[b.name])throw Error('Missing '+name+'.'+b.name);return[b.name,this.buffers[b.name]];})),scalars);}
  async resize(width,height){
@@ -27,7 +32,7 @@ export class Engine{
  }
  async rebuild(){
   await this.runtime.idle();this.runtime.batch().dispatch(this.calls.clearQueue,[1]).dispatch(this.calls.prepareLots,[ABI.WORLD_LOTS/64]).dispatch(this.calls.planBounds,[1]).submit();await this.runtime.idle();
-  for(let chunk=0;chunk<ABI.BUILD_CHUNKS;chunk++){const b=this.runtime.batch({label:'Bounds chunk '+chunk});for(let level=0;level<7;level++)b.dispatch(this.chunks[chunk][level],[1],{resource:this.buffers.Args,offset:(chunk*21+level*3)*4});b.submit();await this.runtime.idle();this.onProgress('Building city bounds '+(chunk+1)+'/'+ABI.BUILD_CHUNKS,.62+.37*(chunk+1)/ABI.BUILD_CHUNKS);}
+  for(let chunk=0;chunk<ABI.BUILD_CHUNKS;chunk++){const b=this.runtime.batch({label:'Bounds chunk '+chunk});for(let level=0;level<7;level++)b.dispatch(this.chunks[chunk][level],[1],{resource:this.buffers.Args,offset:(chunk*21+level*3)*4});b.submit();await this.runtime.idle();this.onProgress({type:'bounds',message:'City bounds '+(chunk+1)+'/'+ABI.BUILD_CHUNKS,progress:.62+.37*(chunk+1)/ABI.BUILD_CHUNKS,chunk:chunk+1,total:ABI.BUILD_CHUNKS});}
   const q=await this.runtime.read(this.buffers.Queue,Uint32Array,4,0);this.lastRebuildLots=q[0];
  }
  stage(i,timed){return this.runtime.batch({label:STAGES[i],...(timed?{timestampWrites:{querySet:this.queries,beginningOfPassWriteIndex:i*2,endOfPassWriteIndex:i*2+1}}:{})});}
