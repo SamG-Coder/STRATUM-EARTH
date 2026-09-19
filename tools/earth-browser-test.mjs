@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {chromium} from 'playwright';
 import {fixture} from '../tests/earth/fixture.js';
 
-const root=fileURLToPath(new URL('../',import.meta.url)),reportDir=path.join(root,'reports');await fs.mkdir(reportDir,{recursive:true});
+const root=path.resolve(fileURLToPath(new URL('../',import.meta.url))),reportDir=path.join(root,'reports');await fs.mkdir(reportDir,{recursive:true});
 // Serve the repository beneath a project prefix, matching GitHub Pages path semantics.
 const prefix='/STRATUM-EARTH',mime={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.json':'application/json','.css':'text/css','.wgsl':'text/plain','.cu':'text/plain'};
 const server=http.createServer(async(req,res)=>{try{let p=decodeURIComponent(new URL(req.url,'http://localhost').pathname);if(!p.startsWith(prefix+'/')){res.writeHead(404).end();return;}p=p.slice(prefix.length);const file=path.resolve(root,'.'+(p.endsWith('/')?p+'index.html':p));if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}const data=await fs.readFile(file);res.writeHead(200,{'Content-Type':mime[path.extname(file)]||'application/octet-stream','Cache-Control':'no-store'}).end(data);}catch{res.writeHead(404).end();}});
@@ -15,15 +15,18 @@ const base=`http://127.0.0.1:${server.address().port}${prefix}/`;
 const software=process.env.CW_SOFTWARE_GPU!=='0';
 const args=software?['--no-sandbox','--enable-unsafe-webgpu','--use-angle=swiftshader','--use-webgpu-adapter=swiftshader']:[];
 const options={headless:true,args};if(process.env.CHROMIUM_EXECUTABLE)options.executablePath=process.env.CHROMIUM_EXECUTABLE;
-let browser;const errors=[],tests=[],network=[];
+let browser,page;const errors=[],tests=[],network=[],resourceErrors=[];
 try{
- browser=await chromium.launch(options);const context=await browser.newContext({viewport:{width:1440,height:960}});const page=await context.newPage();
+ browser=await chromium.launch(options);const context=await browser.newContext({viewport:{width:1440,height:960}});page=await context.newPage();
  page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')console.error('BROWSER:',m.text());});
+ page.on('response',r=>{if(r.status()>=400)resourceErrors.push({url:r.url(),status:r.status()});});
  // No CI test sends requests to community servers. Only explicit synthetic fixtures.
  let responseStatus=200,delay=0;
  await context.route('https://overpass-api.de/api/interpreter',async route=>{network.push(route.request().postData());if(delay)await new Promise(r=>setTimeout(r,delay));try{await route.fulfill({status:responseStatus,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*','Retry-After':'1'},body:responseStatus===200?JSON.stringify(fixture()):'Rate limited (synthetic test)'});}catch{/* cancelled request */}});
  await context.route(/https:\/\/(?!overpass-api\.de)/,route=>route.abort());
- await page.goto(base);await page.waitForFunction(()=>!!window.stratumEarth,{},{timeout:45000});
+ const response=await page.goto(base);assert.equal(response.status(),200,'Project-prefixed test page must be served');
+ await page.waitForFunction(()=>!!window.stratumEarth||document.querySelector('#phase')?.textContent==='ERROR',{},{timeout:45000});
+ assert.ok(await page.evaluate(()=>!!window.stratumEarth),await page.locator('#status').textContent());
  await page.waitForFunction(()=>window.stratumEarth.renderer.drawCount>4,{},{timeout:45000});
  await page.screenshot({path:path.join(reportDir,'earth-globe.png')});tests.push('Globe initializes beneath /STRATUM-EARTH/ with local dependencies');
  await page.evaluate(()=>{stratumEarth.renderer.goTo(-37.814,144.964,430,{animate:false});});
@@ -45,5 +48,5 @@ try{
  const adapter=await page.evaluate(async()=>{const a=await navigator.gpu?.requestAdapter();return a?.info?{vendor:a.info.vendor,architecture:a.info.architecture,device:a.info.device,description:a.info.description}:null;});
  const report={schema:'stratum.earth-browser-validation.v1',passed:true,browser:browser.version(),softwareAdapterRequested:software,adapter,stats,exactFarmMatch:exact,tests,pageErrors:errors,networkRequests:network.length,geography:'Explicitly synthetic fixture; no external service requests in regression tests.',notMeasured:['RTX hardware speed','full Earth reconstruction','terrain elevation']};
  await fs.writeFile(path.join(reportDir,'earth-browser.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
-}catch(e){await fs.writeFile(path.join(reportDir,'earth-browser-failure.json'),JSON.stringify({error:e.stack,pageErrors:errors,tests},null,2));throw e;}
+}catch(e){const ui=await page?.evaluate(()=>({phase:document.querySelector('#phase')?.textContent,status:document.querySelector('#status')?.textContent,log:document.querySelector('#events')?.textContent})).catch(()=>null);await page?.screenshot({path:path.join(reportDir,'earth-failure.png')}).catch(()=>{});await fs.writeFile(path.join(reportDir,'earth-browser-failure.json'),JSON.stringify({error:e.stack,pageErrors:errors,tests,resourceErrors,ui},null,2));throw e;}
 finally{await browser?.close();await new Promise(r=>server.close(r));}
