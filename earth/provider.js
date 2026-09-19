@@ -18,7 +18,7 @@ function safeURL(value) {
 }
 /** One in-flight request, interval/backoff, no endpoint rotation and no bulk world scraping. */
 export class EarthProvider {
-  constructor({endpoint=OVERPASS_ENDPOINT,kind='overpass',cache,fetchFn=globalThis.fetch,minInterval=3000,timeout=40000,maxBytes=12*1024*1024,now=Date.now}={}) {
+  constructor({endpoint=OVERPASS_ENDPOINT,kind='overpass',cache,fetchFn=(...args)=>globalThis.fetch(...args),minInterval=3000,timeout=40000,maxBytes=12*1024*1024,now=Date.now}={}) {
     if(!['overpass','tiles'].includes(kind))throw new Error('Unknown provider type');
     safeURL(endpoint);if(kind==='tiles'&&!['{z}','{x}','{y}'].every(k=>endpoint.includes(k)))throw new Error('Tile URL must contain {z}, {x}, {y}.');
     this.endpoint=endpoint;this.kind=kind;this.cache=cache;this.fetchFn=fetchFn;this.minInterval=minInterval;this.timeout=timeout;this.maxBytes=maxBytes;this.now=now;this.nextAllowed=0;this.tail=Promise.resolve();this.stats={requests:0,cacheHits:0,bytes:0};
