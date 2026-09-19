@@ -170,7 +170,7 @@ async function start(){try{
 }catch(e){fatal(e);}}
 
 $('export-genome').onclick=()=>{if(ready)downloadBlob(new Blob([JSON.stringify(engine.genome,null,2)],{type:'application/json'}),'stratum-city-genome.json');};
-$('import-genome').onclick=()=>{if(ready&&!busy)$('genome-file').click();};
+$('import-genome').onclick=()=>{if(ready)$('genome-file').click();};
 $('export-city').onclick=()=>{if(ready)downloadBlob(new Blob([JSON.stringify(cityBundle(engine.plan,engine.genome),null,2)],{type:'application/json'}),'stratum-city-bundle.json');};
 $('genome-file').onchange=async e=>{
  const files=Array.from(e.target.files);if(!files.length)return;
