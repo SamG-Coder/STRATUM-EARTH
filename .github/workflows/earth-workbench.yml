@@ -1,0 +1,30 @@
+name: Earth development snapshot
+on:
+  push:
+    branches: [feature/geospatial-earth-foundation]
+    paths: ['.github/workflows/earth-workbench.yml']
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Snapshot tracked base
+        run: git archive --format=tar HEAD | gzip > earth-base.tar.gz
+      - name: Fetch pinned renderer dependencies for development
+        run: |
+          mkdir -p .workbench
+          npm install --prefix .workbench --ignore-scripts --no-audit --no-fund three@0.180.0 earcut@3.0.2
+          tar -czf earth-dependencies.tar.gz -C .workbench node_modules package-lock.json package.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: earth-development-snapshot
+          path: |
+            earth-base.tar.gz
+            earth-dependencies.tar.gz
+          retention-days: 7
