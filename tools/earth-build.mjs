@@ -1,0 +1,12 @@
+import fs from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {compile,serializableArtifact,COMPILER_VERSION} from '../vendor/cuda-webshader/compiler/compiler.js';
+const root=new URL('../',import.meta.url),out=new URL('vendor/earth/',root);
+await fs.mkdir(out,{recursive:true});
+const copies=[['three/build/three.core.js','three.core.js'],['three/build/three.webgpu.js','three.webgpu.js'],['three/build/three.tsl.js','three.tsl.js'],['three/LICENSE','THREE-LICENSE.txt'],['earcut/src/earcut.js','earcut.js'],['earcut/LICENSE','EARCUT-LICENSE.txt'],['world-atlas/land-110m.json','land-110m.json'],['world-atlas/LICENSE','WORLD-ATLAS-LICENSE.txt']];
+for(const [from,to] of copies)await fs.copyFile(new URL('node_modules/'+from,root),new URL(to,out));
+const source=await fs.readFile(new URL('earth/kernels/detail-farm.cu',root),'utf8'),options={entry:'detailFarm',workgroupSize:[64,1,1],optimize:'specialize'};
+const artifact=serializableArtifact(compile(source,options));artifact.sourceHash=createHash('sha256').update(COMPILER_VERSION+JSON.stringify(options)+source).digest('hex');
+await fs.mkdir(new URL('generated-earth/',root),{recursive:true});await fs.writeFile(new URL('generated-earth/detailFarm.json',root),JSON.stringify(artifact));await fs.writeFile(new URL('generated-earth/detailFarm.wgsl',root),artifact.wgsl);
+await fs.writeFile(new URL('generated-earth/build.json',root),JSON.stringify({build:'stratum-earth-0.4.0',compiler:COMPILER_VERSION,shaderHash:artifact.sourceHash,geodesy:'WGS84 ellipsoid metres',terrain:'not implemented',overview:'Natural Earth 1:110M via world-atlas 2.0.2',dependencies:{three:'0.180.0',earcut:'3.0.2'}},null,2));
+console.log(`EARTH detailFarm | ${artifact.wgsl.length} WGSL bytes | compiler ${COMPILER_VERSION} | separate from unchanged legacy city shaders`);

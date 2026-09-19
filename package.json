@@ -1,21 +1,35 @@
 {
-  "name": "stratum-city-seed-farm",
-  "version": "0.3.0",
+  "name": "stratum-earth",
+  "version": "0.4.0",
   "type": "module",
   "private": true,
-  "description": "Finite Manhattan-inspired CUDA/WebGPU city with offline seed farming, exact shared geometry, parallax interiors and one-bounce city reflections.",
+  "description": "WGS84 globe, bounded live open geography, camera-relative mapped geometry and a CUDA-authored visual-detail seed farm.",
   "scripts": {
-    "build": "node tools/compile.mjs",
+    "build": "node tools/compile.mjs && node tools/earth-build.mjs",
     "prestart": "npm run build",
     "start": "node server.mjs",
     "pretest": "npm run build",
-    "test": "node --test tests/*.test.mjs && node tools/native-test.mjs",
-    "test:source": "node --test tests/*.test.mjs",
+    "test": "npm run test:source && node tools/native-test.mjs",
+    "test:source": "node --test tests/*.test.mjs tests/earth/*.test.mjs",
     "farm": "node tools/farm.mjs",
-    "pages": "node tools/pages.mjs"
+    "pages": "node tools/pages.mjs",
+    "test:browser": "node tools/earth-browser-test.mjs"
   },
-  "engines": {"node": ">=20"},
+  "engines": {
+    "node": ">=20"
+  },
   "license": "MIT",
-  "homepage": "https://samg-coder.github.io/stratum-city/",
-  "repository": {"type": "git", "url": "https://github.com/SamG-Coder/stratum-city.git"}
+  "homepage": "https://samg-coder.github.io/STRATUM-EARTH/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SamG-Coder/STRATUM-EARTH.git"
+  },
+  "dependencies": {
+    "earcut": "3.0.2",
+    "three": "0.180.0",
+    "world-atlas": "2.0.2"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
 }

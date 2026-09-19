@@ -13,4 +13,4 @@ const server=http.createServer((req,res)=>{
  });
 });
 server.on('error',e=>{console.error(e.code==='EADDRINUSE'?`Port ${port} is already in use. Try: node server.mjs ${port+1}`:e);process.exitCode=1;});
-server.listen(port,'127.0.0.1',()=>{const url=`http://localhost:${port}`;console.log(`\nSTRATUM — The city is code.\n${url}\nKeep this terminal open. Ctrl+C stops the server.\n`);if(process.argv.includes('--open')){const command=process.platform==='win32'?'cmd':process.platform==='darwin'?'open':'xdg-open';const args=process.platform==='win32'?['/c','start','',url]:[url];const child=spawn(command,args,{detached:true,stdio:'ignore'});child.on('error',()=>{});child.unref();}});
+server.listen(port,'127.0.0.1',()=>{const url=`http://localhost:${port}`;console.log(`\nSTRATUM EARTH — Geography is data.\n${url}\nKeep this terminal open. Ctrl+C stops the server.\n`);if(process.argv.includes('--open')){const command=process.platform==='win32'?'cmd':process.platform==='darwin'?'open':'xdg-open';const args=process.platform==='win32'?['/c','start','',url]:[url];const child=spawn(command,args,{detached:true,stdio:'ignore'});child.on('error',()=>{});child.unref();}});
