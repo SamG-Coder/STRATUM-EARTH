@@ -1,0 +1,224 @@
+{
+  "schema": "stratum.shape-plan.v1",
+  "name": "Manhattan / Harbour Study",
+  "description": "Art-directed compressed Manhattan-inspired island. Coordinates, district targets and landmarks are design constraints, not surveyed NYC GIS or measured city statistics.",
+  "cellSize": 48,
+  "coastline": [
+    [
+      -180,
+      -2320
+    ],
+    [
+      -420,
+      -2220
+    ],
+    [
+      -660,
+      -1970
+    ],
+    [
+      -760,
+      -1680
+    ],
+    [
+      -800,
+      -1300
+    ],
+    [
+      -770,
+      -920
+    ],
+    [
+      -740,
+      -540
+    ],
+    [
+      -660,
+      -120
+    ],
+    [
+      -540,
+      340
+    ],
+    [
+      -420,
+      800
+    ],
+    [
+      -300,
+      1280
+    ],
+    [
+      -160,
+      1770
+    ],
+    [
+      30,
+      2170
+    ],
+    [
+      230,
+      2320
+    ],
+    [
+      450,
+      2140
+    ],
+    [
+      620,
+      1720
+    ],
+    [
+      710,
+      1280
+    ],
+    [
+      730,
+      800
+    ],
+    [
+      680,
+      290
+    ],
+    [
+      630,
+      -240
+    ],
+    [
+      520,
+      -710
+    ],
+    [
+      410,
+      -1070
+    ],
+    [
+      330,
+      -1440
+    ],
+    [
+      280,
+      -1810
+    ],
+    [
+      170,
+      -2180
+    ]
+  ],
+  "parks": [
+    {
+      "name": "Battery-like waterfront garden",
+      "x": -210,
+      "z": -2140,
+      "halfWidth": 210,
+      "halfDepth": 130
+    },
+    {
+      "name": "Uptown rectangular park",
+      "x": 190,
+      "z": 1290,
+      "halfWidth": 210,
+      "halfDepth": 470
+    }
+  ],
+  "anchors": [
+    {
+      "name": "Harbour needle (fictional)",
+      "x": -384,
+      "z": -1632,
+      "radius": 28,
+      "height": 390,
+      "family": 6
+    },
+    {
+      "name": "Midtown setback crown (fictional)",
+      "x": 96,
+      "z": 480,
+      "radius": 28,
+      "height": 330,
+      "family": 7
+    },
+    {
+      "name": "East river glass tower (fictional)",
+      "x": 336,
+      "z": -1248,
+      "radius": 28,
+      "height": 265,
+      "family": 6
+    }
+  ],
+  "piers": [
+    {
+      "x": -500,
+      "z": -2200,
+      "halfWidth": 140,
+      "halfDepth": 22
+    },
+    {
+      "x": 260,
+      "z": -2110,
+      "halfWidth": 120,
+      "halfDepth": 28
+    },
+    {
+      "x": -885,
+      "z": -1300,
+      "halfWidth": 130,
+      "halfDepth": 25
+    },
+    {
+      "x": 670,
+      "z": -230,
+      "halfWidth": 115,
+      "halfDepth": 26
+    }
+  ],
+  "waterfrontWidth": 30,
+  "districts": [
+    {
+      "name": "Downtown",
+      "zMax": -1050,
+      "targetMeanHeight": 105,
+      "targetTallFraction": 0.42,
+      "targetGlassFraction": 0.46
+    },
+    {
+      "name": "Village / lofts",
+      "zMax": 200,
+      "targetMeanHeight": 41,
+      "targetTallFraction": 0.025,
+      "targetGlassFraction": 0.16
+    },
+    {
+      "name": "Midtown",
+      "zMax": 1150,
+      "targetMeanHeight": 101,
+      "targetTallFraction": 0.4,
+      "targetGlassFraction": 0.49
+    },
+    {
+      "name": "Uptown",
+      "zMax": 3000,
+      "targetMeanHeight": 43,
+      "targetTallFraction": 0.03,
+      "targetGlassFraction": 0.18
+    }
+  ],
+  "skylinePeaks": [
+    {
+      "x": -230,
+      "z": -1530,
+      "sigmaX": 550,
+      "sigmaZ": 440
+    },
+    {
+      "x": 200,
+      "z": 580,
+      "sigmaX": 470,
+      "sigmaZ": 450
+    }
+  ],
+  "targetCoverage": 0.6,
+  "targetHeightVariation": 0.63,
+  "provenance": "User-supplied Manhattan aerial is a visual reference only. No image pixels or third-party city dataset are distributed as scene assets."
+}

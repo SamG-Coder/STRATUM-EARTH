@@ -1,76 +1,107 @@
-# STRATUM Hyperdetail — Infinite
+# STRATUM CITY
+## Farm the seed. Keep the city.
 
-**[Open the city](https://samg-coder.github.io/stratum-hyperdetail/)** · **[Run real-device GPU checks](https://samg-coder.github.io/stratum-hyperdetail/tests/browser.html)**
+[**City viewer**](https://samg-coder.github.io/stratum-city/) · [**GPU Seed Farm**](https://samg-coder.github.io/stratum-city/farm.html) · [**Real-device checks**](https://samg-coder.github.io/stratum-city/tests/browser.html)
 
-An endlessly traversable seeded city. **The original detailed building grammar is the geometry everywhere.** There is no near/far building-model switch, no macro-box fallback, and no 256-building island. No imported meshes, texture packs, pretrained models, or API calls.
+A **finite, Manhattan-inspired** continuation of STRATUM. A shape plan fixes the island, parks, street exclusions, waterfront and skyline anchors. An offline search selects a compact genome against district-height and architecture-mixture targets. CUDA source reconstructs the detailed city; WebGPU renders it.
 
-## What changed
-
-The former page/query refactor did not compile (`sinkWall` passed an undefined `hit`), discarded hit materials/normals, and changed some single-statement `if` scopes. This version uses a typed, value-returning sink. A feature retains its position, dimensions, analytic shape, orientation, material, seed and identity.
-
-`kernels/assets.cu` supplies the **same exact feature emissions** to three consumers: direct ray intersection, conservative bounding hierarchy construction, and reference enumeration. Roofs remain triangular prisms; domes remain ellipsoids; cylinders keep both caps; arches/rings and procedural leaves retain their original geometry. Windows, mullions, sills, railings, dormers, chimneys, cornices, street furniture, fountains and bridges are not replaced by painted far-field windows.
-
-The old 32-feature group cap is gone. The existing hyperdetail additions now survive instead of silently being dropped. Tests check that the first 32 records of each group match the frozen original renderer and that all group counts fit the 64-feature identity range.
-
-## Endless world, bounded work
-
-The camera uses **64-bit integer lot addresses** (two uint32 words per axis) and lot-local floating-point coordinates. Walking past the former 64×64 city edge generates new deterministic lots. Revisiting a location reconstructs its seed. Coordinates wrap only after the 64-bit address range; this is not a claim of literally unlimited numerical precision.
-
-The visible range is **2,000 metres**, with a smooth atmospheric fade. Infinite exploration does not mean infinitely many objects can be drawn in one frame.
-
-A scrolling 128×128 table stores descriptors and **64-group bounding hierarchies only**. The hierarchy allocation is 64 MiB; frame buffers are additional. No `world lots × 2,048 primitives` allocation exists. Entering a new lot refreshes affected hierarchy records, not the geometric representation of the city. Every ray intersects the original features of groups whose bounds it actually reaches.
-
-## Detail and variation
-
-There are no distance-selected geometry models. The visibility hierarchy rejects groups a ray cannot intersect. Fine material frequencies filter continuously with the projected/grazing-angle footprint. Subpixel geometric coverage uses a deterministic 64-sample stationary sequence, then stops updating: the previous endless random jitter is removed. Fast moving views can still alias; this is not motion-vector temporal reconstruction.
-
-Lot seeds and district seeds vary widths, depths, storey counts/heights, orientations, small setbacks, roof rise and facade palettes. The original pitched-roof, dome, tower, park and canal families remain, with additional slatted benches and shop awnings. The architectural vocabulary is finite and will repeat; there are not infinitely many independently authored building styles.
-
-Lighting uses procedural materials, building-mass sunlight occlusion, sky reflection and screen-space contact shading. **It is not full fine-geometry path tracing.** The previous neural material experiment is not part of the active renderer.
+This is **not a surveyed reconstruction of New York**. The plan is an art-directed, compressed island inspired by the aerial reference. Its coordinates, targets and landmarks are design choices, not GIS data, measured NYC statistics or identifications of actual buildings. No image, mesh or city texture pack is used as a scene asset.
 
 ## Run
 
-Windows: double-click `START.bat`. macOS/Linux: `./start.sh`.
-
-Or:
+Use Node.js 20 or later. No npm install, API account, model download or paid service is required.
 
 ```sh
-npm run build
 npm start
 ```
 
-Open `http://localhost:8089`. Node.js 20+ and a working WebGPU browser are required. No npm package installation is needed for the app. The launcher rebuilds shaders so old generated WGSL cannot silently run instead of the new code.
+Or double-click `START.bat`; on macOS/Linux run `./start.sh`. Open the local URL printed in the terminal. Do not open `index.html` using `file://`.
 
-Desktop starts at 1600 internal pixels wide; 1920, 1024 and 768 remain selectable. This is a quality setting, not a measured performance guarantee.
+Generated WGSL and the combined `Stratum.cu` are build outputs, not checked-in sources. The ZIP includes current outputs for convenience; `npm run build` regenerates them. The launchers build the optional shader accelerators before starting. At boot the browser checks the **exact CUDA source + kernel configuration + compiler fingerprint** before accepting a generated artifact or browser-cache entry. If those do not match, it compiles from `.cu` in a worker. The driver still creates a WebGPU pipeline; compiled WGSL is not a precompiled native GPU binary. Startup reports these phases separately. The geometry and fitness probe kernels are not compiled during normal viewer startup.
 
-WASD moves, drag looks, Q/E changes height, Shift boosts, Ctrl slows, and the wheel changes travel speed. 1–6 select camera bookmarks. P enables a slow flight tour. V cycles lit/district/group/normal inspection. J toggles building shadows. H opens field notes, F toggles fullscreen, C hides the interface, K saves the computed frame.
+High defaults to 1600 pixels wide on desktop, 768 on coarse-pointer devices. Reflections can be turned off separately without replacing the buildings. Pipeline startup cost, hardware frame rate and cross-driver behaviour still need testing on the target GPU.
 
-## Build and verify
+## What this version adds
+
+- Finite island/coastline, Battery-like garden, uptown park, regular street exclusions, a diagonal lower-city avenue, waterfront and piers.
+- Glass towers, stepped masonry high-rises, lower-rise loft buildings and retained detailed STRATUM architecture. Storefront glazing, awnings, rooftop mechanical boxes, water tanks, fire escapes, benches and street lamps are analytic geometry.
+- A real seed-farming evaluator and two search front ends: native offline CLI and browser WebGPU. Both use `describeCityLot()` and `measureGenome()` from the same CUDA files.
+- View-dependent box-room interiors behind glass: seeded room depth, walls/ceiling/floor, furniture solids, lights and blinds.
+- Half-resolution **one-bounce city reflections** using the same exact ray-query function as primary visibility. Glass and water can reflect offscreen architecture, not only the current screen image. Full-resolution reconstruction rejects incompatible depth/normal/material samples and uses the sky where no suitable sample exists.
+
+The supplied genome was selected from **8,192 evaluated candidates**. At this seed the finite plan contains **954 buildings and 451 park-designated lots**, plus water, streets and piers. These are results for this plan/genome, not claims about actual Manhattan.
+
+## Seed farming
+
+`cities/manhattan.plan.json` is the human-readable shape plan. `cities/manhattan.genome.json` is the saved winner, with genes, plan hash, descriptor hash, training/audit metrics, search history and finalists.
+
+A genome contains twelve scalar entries: seed, base height, downtown rise, midtown rise, glass mixture, coverage, height variation, setback amount, palette, facade seed, interior seed and format version. Coastline/park/landmark constraints are explicit rather than something a random seed is expected to discover accidentally.
+
+The fitness evaluates district mean heights, tall-building fractions, glass-family fractions, footprint coverage and height variation. Candidate mutation/crossover changes controllable parameters; seed replacement changes the deterministic realization. An elite set retains strong, nonduplicate candidates. A different sample set audits the finalists before choosing the exported winner. This is a procedural parameter search, not neural training or proof of photographic similarity.
+
+### Native offline search
+
+Requires a C++17 compiler (`g++` by default; set `CXX` for a different compiler). It compiles the same descriptor/fitness CUDA as native C++:
 
 ```sh
-npm test
+npm run farm -- --candidates 8192 --seed 20260919
+npm run farm -- --plan cities/manhattan.plan.json --out cities/my-city.genome.json --candidates 16384
+```
+
+The search writes a genome, not a large generated city file. Stop changing code to try a result: **Field notes → Import farmed genome** accepts the exported JSON, checks the plan hash and rebuilds the bounds. Export current genome saves it again.
+
+### Browser GPU search
+
+Open `farm.html`, choose the budget and search seed, then click **Farm seeds**. This runs locally, separately from the viewer, in 128-candidate batches. Stop retains the best completed search state. Export the winner and import it into the viewer. The CPU and browser search algorithms differ, and GPU floating-point differences can alter rankings; they are not claimed to select identical winners.
+
+The 48-byte gene vector and 1,280-byte packed plan are only parameters. The CUDA program, compiler, GPU bounds and frame buffers are still required.
+
+## Rendering architecture
+
+```text
+Shape plan + selected genome
+            ↓
+Deterministic finite lot descriptors
+            ↓
+One shared family/feature definition
+          ↙   ↘
+Conservative   Exact feature intersections
+ group bounds  for primary AND reflected rays
+          ↘   ↙
+Materials · parallax rooms · glass/water reflection
+            ↓
+Footprint filtering · stationary accumulation · display
+```
+
+There is **no near/far building model swap**, no page-residency-dependent detailed island, and no per-building primitive-page allocation. The same analytical feature set is queried throughout the finite plan. Bounds reject groups a ray cannot intersect; they are not rendered as replacement buildings. Fine material/relief frequencies filter with footprint. Finite stationary sampling stops changing after 64 samples and restarts for camera/light/settings changes.
+
+The grid holds 128 × 128 descriptors and a **64 MiB bounds hierarchy**. Only the island's occupied lots produce buildings. Frame buffers are additional. Primary visibility and reflections use bounded row dispatches. Bounds rebuild on initial load/genome replacement, **not every camera frame**.
+
+The original detailed definitions in `kernels/assets.cu` are retained. `kernels/city-assets.cu` adds city families and dispatches to the original definition where appropriate. The shared `emitFeature()` sink supplies bounds, enumeration, normals, materials and exact query geometry. There is no manually reimplemented low-detail roof/facade substitute.
+
+## Controls
+
+WASD/arrows fly; drag to look; Q/E change height; Shift boosts; Ctrl slows; wheel changes speed. Keys 1–6 select the six views. P orbits, R toggles city reflections, I toggles interiors, J toggles building shadows, V cycles debug views, [ / ] rotate the sun, + / − change exposure, F enters fullscreen, H/Tab opens notes, C hides the interface and K captures the computed frame.
+
+Touch supports dragging/view buttons, not a full mobile flight controller. Movement is free flight rather than collision-constrained walking.
+
+## Validation
+
+```sh
+npm run build
+npm run test:source
+node tools/native-test.mjs
 npm run pages
 ```
 
-`npm test` first translates the CUDA entry points, checks generated-source and host/binding contracts, then compiles/runs the native C++ parity suite. It requires `g++` or `CXX` for the native checks. `npm run test:source` runs only the source/runtime-contract checks after building.
+Performed for this version: all 13 entries translated with the bundled compiler; six Node tests passed, including source-hash validation and runtime compilation without `generated/`; 13,857 original feature records matched the frozen reference; 960 rays through new families matched exhaustive intersections with zero distance error. Native address/undefined-behaviour sanitizer tests passed. CPU references exercised the primary, interior and reflection lighting paths.
 
-Build output is staged: an unsuccessful compile leaves the previous complete generated directory intact rather than shipping a partially updated shader set. GitHub Actions validates before deploying.
+**Browser execution could not be verified here:** Chromium navigation to localhost was blocked by the environment (`ERR_BLOCKED_BY_ADMINISTRATOR`). No RTX 5080, mobile FPS, native driver compile time or hardware stability claim is made. `tests/browser.html` compiles real-device pipelines, checks 48 native reference fixtures and compares GPU seed fitness with the native result.
 
-The frozen original emitter is under `tests/reference/`. Native checks cover original feature/material identity, hierarchy-vs-exhaustive ray hits, caps/rings, 64-bit coordinate carry/borrow, deterministic revisits, floating-origin rebasing, variation and stationary convergence.
+See `docs/city/VALIDATION.md` for the measured search numbers and limitations. GitHub Pages requires **Settings → Pages → Source: GitHub Actions** to be enabled in this repository. The workflow compiles/tests before packaging; the test job does not itself execute a hardware GPU.
 
-`tests/browser.html` creates the actual WebGPU pipelines and runs 54 shader/CPU geometry fixtures. It reports the real adapter and fails on mismatches; mock tests are not presented as GPU validation.
+## Limits
 
-### Validation of this build
+This is a renderer/tooling prototype, not photogrammetry, a production game, a literal NYC map or an infinite world. Roads/blocks are stylized. Shadows use building masses rather than tracing every small feature. Reflections are one bounce at half resolution, not multiple-bounce GI; rough-surface, disocclusion and tiny-pane errors remain possible. Interior rooms are procedural cuboids, not walkable apartments. The shader cache cannot eliminate the graphics driver's pipeline compilation cost. Performance must be measured on the target GPU.
 
-See `docs/VALIDATION_INFINITE.md` and logs. CUDA translation, source/runtime-contract tests, native geometry tests and a CPU reference render were executed. Browser GPU execution could not be completed in the build environment: localhost navigation was blocked by browser policy. **RTX 5080 frame rate, Windows driver stability and real-browser image quality remain unmeasured.** The saved preview is explicitly a CPU reference render, not an image-generation result or a GPU benchmark.
-
-## Source map
-
-- `common.cu`, `world.cu`: integer coordinates, world descriptors, floating camera and stable sampling.
-- `geometry.cu`: original analytic shape intersections and normals.
-- `sink.cu`, `assets.cu`: the shared full-detail feature grammar and sinks.
-- `accel.cu`, `trace.cu`: bound-only acceleration and exact ray queries.
-- `materials.cu`, `shade.cu`: continuous material filtering and lighting.
-- `src/engine.js`: resource limits, bounded submissions, indirect refresh, measurements and presentation.
-
-The generated `Stratum.cu` combines the maintained split files. WGSL is compiler output. Vendored CUDA WebShader licences and notices are unchanged. The browser host/interface is JavaScript/HTML/CSS; `.cu` authors the world and rendering, rather than hardware CUDA executing inside a browser.
+Legacy infinite-renderer documentation and unused experimental kernels are retained for provenance; the current entry-point registry is `src/kernel-specs.js`. The active renderer has no neural component. Existing vendor notices and MIT licenses are preserved.

@@ -1,4 +1,4 @@
-import {Engine} from './engine.js';
+import {Engine,BUILD_ID} from './engine.js';
 const $=id=>document.getElementById(id);
 const canvas=$('world'),engine=new Engine(canvas),params=new URLSearchParams(location.search);
 const keys=new Set(),pulse=new Float32Array(32);let ready=false,faulted=false,busy=false,hidden=false,dragging=false;
@@ -7,19 +7,19 @@ let seed=Number(params.get('seed')??1788);if(!Number.isInteger(seed)||seed<0||se
 let last=0,mouseX=0,mouseY=0,wheel=0,resizeTimer,noticeTimer,polling=false,resizePending=false;
 let frameStart=0,completed=0,displayFPS=0,frameWindow=performance.now(),lastPoll=0,lastInfo=null;
 const testing=params.has('test');
-const views={1:['An entire district.<br>Not a single mesh file.','Fly from the skyline to individual mortar joints.'],2:['Stone, shade<br>and open arcades.','Columns, vaults and railings are generated geometry.'],3:['The wall is a program.','Joints, fractures, weathering and grain — no texture maps.'],4:['Keep going.<br>The city continues.','Every lot uses the same exact feature grammar, near and far.'],5:['Water, bridges<br>and a distant skyline.','Integer world coordinates preserve the seed as you travel.'],6:['Closer is not<br>a bigger texture.','World-space materials and bounded ray-evaluated mortar relief.']};
+const views={1:['A city, selected.<br>Not streamed.','Finite Manhattan-inspired plan. One detailed geometry definition.'],2:['Life between towers.','Storefronts, fire escapes and windows with interior depth.'],3:['A second skyline.','Glass towers and stepped masonry above a lower-rise city.'],4:['The shape plan.','Island, waterfront, parks and skyline anchors are explicit constraints.'],5:['At the waterline.','One-bounce city reflections and procedural water.'],6:['Behind the glass.','Seeded interiors change with the viewing angle.']};
 function notice(text){$('notice').textContent=text;$('notice').classList.add('show');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').classList.remove('show'),3800);}
 function fatal(error){if(faulted)return;faulted=true;console.error(error);$('boot').hidden=false;$('status').textContent='The renderer could not start.';$('detail').textContent=String(error?.message??error);$('retry').hidden=false;document.body.classList.remove('ready');}
 $('retry').onclick=()=>location.reload();
 function chooseView(id){if(!ready)return;pulse[8]=id;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',Number(b.dataset.view)===id));const v=views[id];if(v){$('place-title').innerHTML=v[0];$('place-sub').textContent=v[1];}}
 function toggleNotes(){const p=$('notes');p.classList.toggle('closed');}
 function action(slot,text){if(!ready)return;pulse[slot]=1;if(text)notice(text);}
-$('quality').value=String(width);$('seed-label').textContent=String(seed);
+$('quality').value=String(width);$('seed-label').textContent='Loading…';$('build-label').textContent=BUILD_ID;
 $('quality').onchange=e=>{width=Number(e.target.value);queueResize();};
 $('info-button').onclick=toggleNotes;$('close-notes').onclick=toggleNotes;
 $('fullscreen').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen().catch(()=>notice('Fullscreen is not available.'));
 
-$('debug-button').onclick=()=>action(10);$('shadow-toggle').onclick=()=>action(14);$('tour').onclick=()=>action(16);
+$('reflection-toggle').onclick=()=>action(20);$('interior-toggle').onclick=()=>action(21);$('debug-button').onclick=()=>action(10);$('shadow-toggle').onclick=()=>action(14);$('tour').onclick=()=>action(16);
 for(const b of document.querySelectorAll('[data-view]'))b.onclick=()=>chooseView(Number(b.dataset.view));
 $('export-stats').onclick=()=>{if(lastInfo)downloadBlob(new Blob([JSON.stringify({...lastInfo,seed,capturedAt:new Date().toISOString()},null,2)],{type:'application/json'}),'stratum-measurements.json');};
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
@@ -30,7 +30,7 @@ addEventListener('keydown',e=>{
  if(!ready||faulted)return;
  keys.add(e.code);if(e.repeat)return;
  const digits={Digit1:1,Digit2:2,Digit3:3,Digit4:4,Digit5:5,Digit6:6};if(digits[e.code])chooseView(digits[e.code]);
- const actions={KeyJ:14,KeyP:16,KeyV:10};if(actions[e.code])action(actions[e.code]);
+ const actions={KeyJ:14,KeyP:16,KeyV:10,KeyR:20,KeyI:21};if(actions[e.code])action(actions[e.code]);
  if(e.code==='KeyH'||e.code==='Tab')toggleNotes();
  if(e.code==='KeyF')$('fullscreen').click();
  if(e.code==='KeyC'){hidden=!hidden;document.body.classList.toggle('clean',hidden);}
@@ -63,9 +63,10 @@ async function poll(){
  if(polling)return;polling=true;
  try{
   const v=await engine.inspect();lastInfo=v;const c=v.camera;
-  $('primitive-count').textContent='Exact · all distances';$('pages-count').textContent=fmt(v.accelerationLots)+' bound records';
-  $('generated-count').textContent=fmt(v.refreshedLots);$('pending-count').textContent=String(Math.round(c[19]))+' / 64 spp';
-  $('reuse-count').textContent=v.origin.x+', '+v.origin.z;$('cache-memory').textContent=mib(v.accelerationBytes);$('total-memory').textContent=mib(v.allocatedBytes);
+  $('seed-label').textContent=String(v.genomeSeed);$('pages-count').textContent=fmt(v.accelerationLots)+' bound records';
+  $('search-count').textContent=v.search?fmt(v.search.evaluated):'Imported';$('search-loss').textContent=v.search?v.search.train.toFixed(4)+' / '+v.search.audit.toFixed(4):'—';
+  $('sample-count').textContent=String(Math.round(c[19]))+' / 64';$('cache-memory').textContent=mib(v.accelerationBytes);$('total-memory').textContent=mib(v.allocatedBytes);
+  $('reflection-toggle').textContent='R · City reflections '+(c[25]>.5?'ON':'OFF');$('interior-toggle').textContent='I · Parallax interiors '+(c[26]>.5?'ON':'OFF');
   $('camera-height').textContent=`${c[1]<10?c[1].toFixed(2):fmt(c[1])} m`;
   $('render-size').textContent=`${v.width} × ${v.height}`;
   if(v.timings){$('timings').replaceChildren(...v.timings.map(({label,ms})=>{const row=document.createElement('div');row.className='timing-row';const a=document.createElement('span'),b=document.createElement('strong');a.textContent=label;b.textContent=ms.toFixed(2)+' ms';row.append(a,b);return row;}));}
@@ -83,10 +84,15 @@ async function frame(now){
  if(now-lastPoll>650){lastPoll=now;poll();}
 }
 async function start(){try{
- const [w,h]=dimensions();await engine.init({width:w,height:h,seed,recompile:params.has('compile'),onProgress:(name,f)=>{$('status').textContent=`Compiling ${name}`;$('progress').style.width=`${Math.round(f*100)}%`;},onError:fatal});
+ const [w,h]=dimensions();await engine.init({width:w,height:h,onProgress:(name,f)=>{$('status').textContent=name;$('progress').style.width=`${Math.round(f*100)}%`;},onError:fatal});
  if(faulted)return;ready=true;document.body.classList.add('ready');$('boot').hidden=true;canvas.focus();
  window.stratum={engine,ready:true,chooseView,screenshot,inspect:()=>engine.inspect()};
  engine.frame(1/60);await engine.runtime.idle();await poll();requestAnimationFrame(frame);
  if(matchMedia('(pointer:coarse)').matches)notice('This build uses keyboard flight controls. Drag to look; use the view buttons to explore.');
 }catch(e){fatal(e);}}
+
+$('export-genome').onclick=()=>{if(ready)downloadBlob(new Blob([JSON.stringify(engine.genome,null,2)],{type:'application/json'}),'stratum-city-genome.json');};
+$('import-genome').onclick=()=>{if(ready&&!busy)$('genome-file').click();};
+$('genome-file').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const value=JSON.parse(await file.text());while(busy)await new Promise(r=>setTimeout(r,20));busy=true;ready=false;$('boot').hidden=false;await engine.setGenome(value);ready=true;$('boot').hidden=true;clearControls();last=0;await poll();notice('Imported genome · exact city rebuilt');}catch(e){notice(e.message);if(!engine.disposed)ready=true;$('boot').hidden=true;}finally{busy=false;e.target.value='';}};
+if(matchMedia('(pointer:coarse)').matches)$('notes').classList.add('closed');
 start();

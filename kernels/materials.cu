@@ -9,9 +9,9 @@ __device__ float3 substrate(float u,float v,float seed,int material){
  return base*(age-damp)+make_float3(0.017f,0.024f,0.014f)*damp;
 }
 __device__ float3 sky(float3 rd,float3 sun){
- float elev=sat(rd.y);float3 c=mix3(make_float3(0.62f,0.69f,0.72f),make_float3(0.13f,0.30f,0.52f),powf(elev,0.45f));
+ float elev=sat(rd.y);float3 c=mix3(make_float3(0.30f,0.48f,0.65f),make_float3(0.08f,0.25f,0.50f),powf(elev,0.45f));
  float sd=fmaxf(0.0f,dot3(rd,sun));c=c+make_float3(1.1f,0.62f,0.22f)*powf(sd,18.0f)+make_float3(9.0f,6.0f,3.2f)*powf(sd,2600.0f);
- if(rd.y>0.025f){float cloud=fbm2(rd.x/(rd.y+0.20f)*1.8f+16.0f,rd.z/(rd.y+0.20f)*1.8f);float veil=smoothf(0.46f,0.70f,cloud)*smoothf(0.02f,0.2f,rd.y)*0.55f;c=mix3(c,make_float3(0.86f,0.85f,0.80f),veil);}
+ if(rd.y>0.025f){float cloud=fbm2(rd.x/(rd.y+0.20f)*1.8f+16.0f,rd.z/(rd.y+0.20f)*1.8f);float veil=smoothf(0.46f,0.70f,cloud)*smoothf(0.02f,0.2f,rd.y)*0.30f;c=mix3(c,make_float3(0.86f,0.85f,0.80f),veil);}
  return c;
 }
 // Cellular pores and mineral inclusions are evaluated in metres, not a zoomed bitmap.
@@ -77,5 +77,9 @@ __device__ float3 surfaceColor(float3 p,float3 n,int mat,float seed,float footpr
  else if(mat==15)c=make_float3(0.17f,0.12f,0.065f)*(0.65f+0.6f*fbm2(u*31.0f,v*3.0f));
  if(mat==18){float panel=fractf(u/1.6f);float frame=(1.0f-smoothf(0.02f,0.06f,panel))+(1.0f-smoothf(0.02f,0.06f,1.0f-panel));float band=1.0f-smoothf(0.03f,0.07f,fabsf(v-2.65f));c=mix3(make_float3(0.058f,0.092f,0.105f),make_float3(0.10f,0.059f,0.027f),sat(frame+band));}
  if(mat==17){float a=atan2f(v-floorf(v/30.0f)*30.0f-28.5f,u);float glass=0.5f+0.5f*sinf(a*12.0f+seed);c=mix3(make_float3(0.08f,0.18f,0.32f),make_float3(0.50f,0.12f,0.04f),glass);}
+ if(mat==20)c=mix3(make_float3(.045f,.085f,.105f),make_float3(.075f,.11f,.125f),hash1((int)seed));
+ if(mat==22)c=make_float3(.055f,.073f,.081f);
+ if(mat==23)c=make_float3(.28f,.32f,.34f)*(0.96f+.04f*noise2(u*22.0f,v*22.0f)*frequencyWeight(footprint,22.0f));
+ if(mat==24)c=make_float3(.14f,.15f,.14f)*(0.83f+.17f*noise2(u*18.0f,v*18.0f)*frequencyWeight(footprint,18.0f));
  return c;
 }

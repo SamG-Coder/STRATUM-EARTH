@@ -1,5 +1,5 @@
-import {spawnSync} from 'node:child_process';import os from 'node:os';import path from 'node:path';
-const binary=path.join(os.tmpdir(),'stratum-native-'+process.pid+(process.platform==='win32'?'.exe':''));
-const compiler=process.env.CXX||'g++';let r=spawnSync(compiler,['-std=c++17','-O2','tests/native_harness.cpp','-o',binary],{stdio:'inherit'});
-if(r.error)throw Error('C++ compiler required for native parity tests. Install g++ or set CXX; use npm run test:source for source-only checks.');if(r.status!==0)process.exit(r.status||1);
-r=spawnSync(binary,[],{stdio:'inherit'});process.exit(r.status||0);
+import {spawnSync} from 'node:child_process';import fs from 'node:fs/promises';import os from 'node:os';import path from 'node:path';import {encodePlan,validateGenomeFile} from '../src/city-data.js';
+const temp=await fs.mkdtemp(path.join(os.tmpdir(),'city-tests-'));try{
+ const bin=path.join(temp,process.platform==='win32'?'city-test.exe':'city-test'),p=encodePlan(JSON.parse(await fs.readFile('cities/manhattan.plan.json','utf8'))),g=validateGenomeFile(JSON.parse(await fs.readFile('cities/manhattan.genome.json','utf8')));await fs.writeFile(path.join(temp,'plan.bin'),Buffer.from(p.buffer));await fs.writeFile(path.join(temp,'genome.bin'),Buffer.from(g.buffer));
+ let r=spawnSync(process.env.CXX||'g++',['-std=c++17','-O2','tests/city_native.cpp','-o',bin],{stdio:'inherit'});if(r.error)throw Error('Native tests require C++17. Set CXX or run npm run test:source for JS/compiler tests only.');if(r.status)process.exitCode=r.status;else{r=spawnSync(bin,[path.join(temp,'plan.bin'),path.join(temp,'genome.bin')],{stdio:'inherit'});process.exitCode=r.status||0;}
+}finally{await fs.rm(temp,{recursive:true,force:true});}

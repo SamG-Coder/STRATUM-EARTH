@@ -1,15 +1,15 @@
 // STRATUM Infinite: one authored feature grammar, bounded acceleration, no proxy models.
-#define CELL 36.0f
+#define CELL 48.0f
 #define WORLD_SIDE 128
 #define WORLD_LOTS 16384
 #define LOT_FLOATS 16
 #define CLUSTERS 64
 #define GROUP_NODES 128
-#define MAX_FEATURES 64
+#define MAX_FEATURES 512
 #define BUILD_CHUNK 2048
 #define BUILD_CHUNKS 8
-#define FAR 2000.0f
-#define SCENE_TOP 100.0f
+#define FAR 8000.0f
+#define SCENE_TOP 600.0f
 #define PI 3.141592653589793f
 #define NN_INPUTS 8
 #define NN_HIDDEN 24
@@ -18,6 +18,8 @@ struct Lot {
  float w; float d; float h; int type; int mat; int floors; float seed;
  float storey; float roofScale; int turn; float ox; float oz; float palette;
 };
+struct Genome { float seed; float base; float downtown; float midtown; float glass; float coverage; float variation; float setback; float palette; float facade; float interior; };
+struct CityHit { float t; int fid; int material; float seed; float3 normal; int slot; float4 pane; };
 struct Tag { unsigned int xl; unsigned int xh; unsigned int zl; unsigned int zh; };
 struct Feature { float3 p; float3 h; int shape; int material; int turn; float seed; };
 struct Sink {

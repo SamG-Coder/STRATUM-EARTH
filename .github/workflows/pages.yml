@@ -1,4 +1,4 @@
-name: Validate exact geometry and deploy Pages
+name: Validate seed-farmed city and deploy Pages
 on:
   push:
     branches: [main]
@@ -18,12 +18,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Build shaders and run source plus native geometry parity tests
+      - name: Compile all CUDA kernels and run source plus exact-geometry tests
         run: |
           npm run build
           npm run test:source
           node tools/native-test.mjs
-      - name: Package static site
+      - name: Package finite city and seed farmer
         run: npm run pages
       - uses: actions/upload-pages-artifact@v4
         if: github.event_name != 'pull_request'

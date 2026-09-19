@@ -1,0 +1,3 @@
+Evaluating 8,192 genomes against Manhattan / Harbour Study...
+Baseline loss 0.129157 → selected training 0.007335; fresh audit 0.090065.
+/mnt/data/stratum-city/cities/manhattan.genome.json

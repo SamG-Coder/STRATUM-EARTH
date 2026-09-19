@@ -2,7 +2,7 @@
 __global__ void buildGroupBounds(const unsigned int* Queue,const float* World,float* Nodes,int queueBase){
  int q=queueBase+(int)blockIdx.x,g=(int)threadIdx.x;if(q>=(int)Queue[0]||g>=CLUSTERS)return;
  int slot=(int)Queue[q+1];Lot lot=readLot(World,slot);Sink sink=newSink(1,make_float3(0.0f,0.0f,0.0f),make_float3(0.0f,0.0f,1.0f),FAR);
- sink=authoredGroup(lot,g,sink);int b=(slot*GROUP_NODES+CLUSTERS+g)*8;
+ sink=cityGroup(lot,g,sink);int b=(slot*GROUP_NODES+CLUSTERS+g)*8;
  Nodes[b]=sink.lo.x;Nodes[b+1]=sink.lo.y;Nodes[b+2]=sink.lo.z;Nodes[b+3]=(float)sink.count;
  Nodes[b+4]=sink.hi.x;Nodes[b+5]=sink.hi.y;Nodes[b+6]=sink.hi.z;Nodes[b+7]=(float)g;
 }

@@ -1,0 +1,15 @@
+{
+  "build": "stratum-city-seed-farm-1",
+  "city": "Finite Manhattan-inspired study",
+  "source": "Fork CUDA blobs verified; new seeded plan and families",
+  "cudaEntries": 13,
+  "nodeTests": 6,
+  "originalFeatureRecords": 13857,
+  "newFamilyRays": 960,
+  "worstRayDistanceError": 0,
+  "candidatesEvaluated": 8192,
+  "hardwareGpuExecutionVerified": false,
+  "browserAttempt": "ERR_BLOCKED_BY_ADMINISTRATOR",
+  "renderer": "exact-shared-grammar",
+  "primaryGeometryModels": 1
+}

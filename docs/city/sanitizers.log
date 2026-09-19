@@ -1,0 +1,11 @@
+Original feature records compared: 13857; maximum group size: 56
+PASS exact original geometry/material/seed identity and unclipped hyperdetail additions
+CITY BUILDINGS 954 PARK LOTS 451 WATER LOTS 14314 FAMILIES 4 MAX HEIGHT 394.2
+PASS finite plan contains mixed architecture, parks, water and landmark anchors
+PASS water and park masks match the shape plan
+NEW FAMILY RAYS 960 HITS 960 WORST 0 MAX GROUP FEATURES 279
+PASS new families: accelerated intersections agree with exhaustive exact features
+PASS finite independent seed-farming train/audit metrics
+PASS interior ray is finite and changes with view direction
+PASS stationary samples settle without endless jitter
+ALL CITY NATIVE CHECKS PASSED
