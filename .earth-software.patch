@@ -5,7 +5,7 @@
   try:
    async with async_playwright() as p:
 -   options={'headless':True,'args':['--enable-unsafe-webgpu','--use-angle=swiftshader','--no-sandbox']}
-+   options={'headless':True,'channel':'chromium','args':['--enable-unsafe-webgpu','--use-angle=swiftshader','--no-sandbox']}
++   options={'headless':True,'channel':'chromium','args':['--enable-unsafe-webgpu','--use-angle=swiftshader','--use-vulkan=swiftshader','--enable-features=Vulkan','--disable-vulkan-surface','--no-sandbox']}
     if os.getenv('CHROMIUM_PATH'):options['executable_path']=os.environ['CHROMIUM_PATH']
     browser=await p.chromium.launch(**options)
     page=await browser.new_page(viewport={'width':1440,'height':900})
