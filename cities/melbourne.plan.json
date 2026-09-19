@@ -1,0 +1,209 @@
+{
+  "schema": "stratum.shape-plan.v1",
+  "name": "Melbourne / Birrarung Garden City",
+  "description": "An art-directed Melbourne-inspired planned city: a compact gridded CBD, two skyline clusters, a western river inlet and generous garden precincts. Compressed design study, not surveyed GIS or a literal Melbourne reconstruction.",
+  "cellSize": 48,
+  "coastline": [
+    [
+      -900,
+      -1700
+    ],
+    [
+      780,
+      -1700
+    ],
+    [
+      900,
+      -1300
+    ],
+    [
+      900,
+      1600
+    ],
+    [
+      650,
+      1850
+    ],
+    [
+      -700,
+      1850
+    ],
+    [
+      -900,
+      1450
+    ],
+    [
+      -900,
+      -100
+    ],
+    [
+      -600,
+      -180
+    ],
+    [
+      -240,
+      -160
+    ],
+    [
+      100,
+      -260
+    ],
+    [
+      440,
+      -180
+    ],
+    [
+      720,
+      -280
+    ],
+    [
+      720,
+      -410
+    ],
+    [
+      430,
+      -320
+    ],
+    [
+      100,
+      -410
+    ],
+    [
+      -240,
+      -310
+    ],
+    [
+      -620,
+      -350
+    ],
+    [
+      -900,
+      -300
+    ]
+  ],
+  "waterfrontWidth": 24,
+  "parks": [
+    {
+      "name": "Domain-inspired gardens",
+      "x": 520,
+      "z": -1050,
+      "halfWidth": 245,
+      "halfDepth": 420
+    },
+    {
+      "name": "Treasury and Fitzroy garden precinct",
+      "x": 655,
+      "z": 480,
+      "halfWidth": 170,
+      "halfDepth": 350
+    },
+    {
+      "name": "Carlton garden precinct",
+      "x": 300,
+      "z": 1420,
+      "halfWidth": 215,
+      "halfDepth": 260
+    },
+    {
+      "name": "Flagstaff garden square",
+      "x": -570,
+      "z": 850,
+      "halfWidth": 145,
+      "halfDepth": 160
+    },
+    {
+      "name": "Birrarung riverside garden",
+      "x": 350,
+      "z": -70,
+      "halfWidth": 185,
+      "halfDepth": 100
+    }
+  ],
+  "anchors": [
+    {
+      "name": "Southbank glass crown (fictional)",
+      "x": -144,
+      "z": -672,
+      "radius": 28,
+      "height": 300,
+      "family": 6
+    },
+    {
+      "name": "CBD north glass crown (fictional)",
+      "x": -144,
+      "z": 624,
+      "radius": 28,
+      "height": 270,
+      "family": 6
+    },
+    {
+      "name": "Collins masonry landmark (fictional)",
+      "x": 240,
+      "z": 144,
+      "radius": 28,
+      "height": 160,
+      "family": 7
+    }
+  ],
+  "piers": [
+    {
+      "x": -860,
+      "z": -210,
+      "halfWidth": 140,
+      "halfDepth": 22
+    },
+    {
+      "x": -580,
+      "z": -270,
+      "halfWidth": 80,
+      "halfDepth": 18
+    }
+  ],
+  "districts": [
+    {
+      "name": "Southbank and Domain",
+      "zMax": -450,
+      "targetMeanHeight": 62,
+      "targetTallFraction": 0.18,
+      "targetGlassFraction": 0.36
+    },
+    {
+      "name": "Riverfront and Hoddle core",
+      "zMax": 300,
+      "targetMeanHeight": 64,
+      "targetTallFraction": 0.16,
+      "targetGlassFraction": 0.32
+    },
+    {
+      "name": "Northern CBD",
+      "zMax": 1000,
+      "targetMeanHeight": 82,
+      "targetTallFraction": 0.3,
+      "targetGlassFraction": 0.44
+    },
+    {
+      "name": "Carlton garden neighbourhoods",
+      "zMax": 3000,
+      "targetMeanHeight": 30,
+      "targetTallFraction": 0.01,
+      "targetGlassFraction": 0.16
+    }
+  ],
+  "skylinePeaks": [
+    {
+      "x": -220,
+      "z": -700,
+      "sigmaX": 520,
+      "sigmaZ": 420
+    },
+    {
+      "x": -120,
+      "z": 520,
+      "sigmaX": 600,
+      "sigmaZ": 480
+    }
+  ],
+  "targetCoverage": 0.55,
+  "targetHeightVariation": 0.68,
+  "provenance": "Original procedural design inspired by Melbourne's Hoddle Grid, Birrarung and garden precincts. All coordinates, heights and statistical targets are artistic choices. Source context: https://participate.melbourne.vic.gov.au/hoddlegridheritage"
+}

@@ -1,3 +1,4 @@
+import {resolveCityImport,cityBundle} from './city-import.js';
 import {Engine,BUILD_ID} from './engine.js';
 import {METROS,DEFAULT_METRO,DEFAULT_REGION,regionById,loadRegion} from './metros.js';
 const $=id=>document.getElementById(id);
@@ -50,11 +51,12 @@ function startupProgress(event,fallback){
  }
  if(e.type==='ready'){finishedLines=totalLines;updateEstimate();compileEta.textContent='Complete';const row=compileJobs.get('city bounds');if(row){row.className='console-line done';row.querySelector('small').textContent='Exact feature acceleration structure';row.querySelector('em').textContent='READY';}$('status').textContent='STRATUM CITY ready';compilePercent.textContent='100%';}
 }
+let customCity=false;
 const views={1:['A city, selected.<br>Not streamed.','Finite Manhattan-inspired plan. One detailed geometry definition.'],2:['Life between towers.','Storefronts, fire escapes and windows with interior depth.'],3:['A second skyline.','Glass towers and stepped masonry above a lower-rise city.'],4:['The shape plan.','Island, waterfront, parks and skyline anchors are explicit constraints.'],5:['At the waterline.','One-bounce city reflections and procedural water.'],6:['Behind the glass.','Seeded interiors change with the viewing angle.']};
 function notice(text){$('notice').textContent=text;$('notice').classList.add('show');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').classList.remove('show'),3800);}
 function fatal(error){if(faulted)return;faulted=true;console.error(error);$('boot').hidden=false;$('status').textContent='The renderer could not start.';$('detail').textContent=String(error?.message??error);$('retry').hidden=false;document.body.classList.remove('ready');}
 $('retry').onclick=()=>location.reload();
-function chooseView(id){if(!ready)return;pulse[8]=id;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',Number(b.dataset.view)===id));const v=views[id];if(v){$('place-title').innerHTML=v[0];$('place-sub').textContent=v[1];}}
+function chooseView(id){if(!ready)return;pulse[8]=id;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',Number(b.dataset.view)===id));const v=views[id];if(customCity){$('place-title').textContent=engine.plan.name||'Imported city';$('place-sub').textContent=engine.plan.description||'Imported shape plan and farmed genome.';return;}if(v){$('place-title').innerHTML=v[0];$('place-sub').textContent=v[1];}}
 function toggleNotes(){const p=$('notes');p.classList.toggle('closed');}
 function action(slot,text){if(!ready)return;pulse[slot]=1;if(text)notice(text);}
 $('quality').value=String(width);$('seed-label').textContent='Loading…';$('build-label').textContent=BUILD_ID;
@@ -77,7 +79,7 @@ async function switchRegion(id){
     // If the user selected another region while fetch was in flight, skip the stale rebuild.
     if(requestedRegion!==target.id)continue;
     await engine.setCity(data.plan,data.genome);
-    region=target;
+    region=target;customCity=false;regionSelect.querySelector('[data-imported]')?.remove();$('metro-label').textContent=metro.name.toUpperCase();$('place-title').innerHTML=views[1][0];$('place-sub').textContent=views[1][1];
     const u=new URL(location.href);u.searchParams.set('metro',DEFAULT_METRO);u.searchParams.set('region',region.id);history.replaceState(null,'',u);
     $('region-label').textContent=region.name.toUpperCase();clearControls();last=0;
    }catch(e){
@@ -169,6 +171,29 @@ async function start(){try{
 
 $('export-genome').onclick=()=>{if(ready)downloadBlob(new Blob([JSON.stringify(engine.genome,null,2)],{type:'application/json'}),'stratum-city-genome.json');};
 $('import-genome').onclick=()=>{if(ready&&!busy)$('genome-file').click();};
-$('genome-file').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const value=JSON.parse(await file.text());while(busy)await new Promise(r=>setTimeout(r,20));busy=true;ready=false;$('boot').hidden=false;await engine.setGenome(value);ready=true;$('boot').hidden=true;clearControls();last=0;await poll();notice('Imported genome · exact city rebuilt');}catch(e){notice(e.message);if(!engine.disposed)ready=true;$('boot').hidden=true;}finally{busy=false;e.target.value='';}};
+$('export-city').onclick=()=>{if(ready)downloadBlob(new Blob([JSON.stringify(cityBundle(engine.plan,engine.genome),null,2)],{type:'application/json'}),'stratum-city-bundle.json');};
+$('genome-file').onchange=async e=>{
+ const files=Array.from(e.target.files);if(!files.length)return;
+ let ownsBusy=false;
+ try{
+  if(files.length>2)throw Error('Select a city bundle, a genome, or one plan and one genome.');
+  const values=await Promise.all(files.map(async file=>{try{return JSON.parse(await file.text());}catch{throw Error('Invalid JSON: '+file.name);}}));
+  while(busy||regionSwitching)await new Promise(r=>setTimeout(r,20));
+  busy=true;ownsBusy=true;regionSelect.disabled=true;
+  const data=await resolveCityImport(values,engine.plan);
+  ready=false;$('boot').hidden=false;$('status').textContent='Building imported city';
+  await engine.setCity(data.plan,data.genome);
+  if(data.customPlan){
+   customCity=true;region={id:'imported',name:data.plan.name||'Imported city'};requestedRegion=region.id;
+   regionSelect.querySelector('[data-imported]')?.remove();
+   const option=document.createElement('option');option.value=region.id;option.textContent=region.name;option.dataset.imported='true';regionSelect.append(option);regionSelect.value=region.id;
+   $('metro-label').textContent='IMPORTED PLAN';$('region-label').textContent=region.name.toUpperCase();
+   $('place-title').textContent=region.name;$('place-sub').textContent=data.plan.description||'Imported shape plan and farmed genome.';
+   const url=new URL(location.href);url.searchParams.delete('region');url.searchParams.delete('metro');history.replaceState(null,'',url);
+  }
+  ready=true;clearControls();last=0;await poll();notice('Imported plan / genome · exact city rebuilt');
+ }catch(error){notice(error.message);}
+ finally{if(ownsBusy){busy=false;regionSelect.disabled=false;ready=!faulted&&!engine.disposed;if(!faulted)$('boot').hidden=true;}e.target.value='';}
+};
 if(matchMedia('(pointer:coarse)').matches)$('notes').classList.add('closed');
 start();

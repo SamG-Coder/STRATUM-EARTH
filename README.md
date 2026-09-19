@@ -48,7 +48,7 @@ npm run farm -- --candidates 8192 --seed 20260919
 npm run farm -- --plan cities/manhattan.plan.json --out cities/my-city.genome.json --candidates 16384
 ```
 
-The search writes a genome, not a large generated city file. Stop changing code to try a result: **Field notes → Import farmed genome** accepts the exported JSON, checks the plan hash and rebuilds the bounds. Export current genome saves it again.
+The search writes a genome, not a large generated city file. Stop changing code to try a result: **Field notes → Import plan / genome** accepts either a genome for the active plan, a matching plan and genome selected together (in either order), or a single `stratum.city-bundle.v1` JSON file containing `plan` and `genome`. The importer validates both files and checks the plan hash before replacing the active city. A plan alone is rejected because it needs a farmed genome. **Export plan + genome** saves a portable bundle; **Export current genome** retains the original genome-only format. Imported cities remain active until you switch regions or reload; export a bundle to keep them. Files are read locally in the browser, not uploaded to a server.
 
 ### Browser GPU search
 
@@ -105,3 +105,15 @@ See `docs/city/VALIDATION.md` for the measured search numbers and limitations. G
 This is a renderer/tooling prototype, not photogrammetry, a production game, a literal NYC map or an infinite world. Roads/blocks are stylized. Shadows use building masses rather than tracing every small feature. Reflections are one bounce at half resolution, not multiple-bounce GI; rough-surface, disocclusion and tiny-pane errors remain possible. Interior rooms are procedural cuboids, not walkable apartments. The shader cache cannot eliminate the graphics driver's pipeline compilation cost. Performance must be measured on the target GPU.
 
 Legacy infinite-renderer documentation and unused experimental kernels are retained for provenance; the current entry-point registry is `src/kernel-specs.js`. The active renderer has no neural component. Existing vendor notices and MIT licenses are preserved.
+
+### Melbourne planned-city study
+
+`cities/melbourne.city.json` contains a complete importable Melbourne-inspired plan and its farmed genome. The individual files are `cities/melbourne.plan.json` and `cities/melbourne.genome.json`. This compressed, art-directed study uses a river inlet, two skyline clusters, a gridded CBD and garden precincts. It is not surveyed Melbourne geography.
+
+Reproduce the search with:
+
+```sh
+node tools/farm.mjs --plan cities/melbourne.plan.json --out cities/melbourne.genome.json --candidates 16384 --seed 20260919
+```
+
+The supplied winner has training loss 0.006703 (baseline 0.103983), fresh audit loss 0.055919, and was selected from 16,384 evaluated candidates. These losses measure the supplied design targets, not real-world similarity.
