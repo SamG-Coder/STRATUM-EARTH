@@ -13,7 +13,7 @@ function geometry(data){const g=new THREE.BufferGeometry();g.setAttribute('posit
 function disposeObject(root){root?.traverse(o=>{o.geometry?.dispose();});root?.removeFromParent();}
 export class EarthRenderer {
  constructor(canvas,{onView=()=>{},onPick=()=>{},onError=console.error}={}){
-  Object.assign(this,{canvas,onView,onPick,onError});this.view={lat:-22,lon:130,distance:14000000,bearing:0,pitch:80};this.targetView=null;this.frame=localFrame(this.view.lat,this.view.lon);this.tiles=new Map();this.active=null;this.controls=new Set();this.drag=null;this.last=0;this.needsSurface=true;this.disposed=false;this.provenance=uniform(0);this.drawCount=0;
+  Object.assign(this,{canvas,onView,onPick,onError});this.view={lat:-22,lon:130,distance:14000000,bearing:0,pitch:80};this.targetView=null;this.frame=localFrame(this.view.lat,this.view.lon);this.tiles=new Map();this.active=null;this.controls=new Set();this.drag=null;this.last=0;this.flightSpeed=1;this.motion={east:0,north:0};this.needsSurface=true;this.disposed=false;this.provenance=uniform(0);this.drawCount=0;
  }
  async init(){
   const options={canvas:this.canvas,antialias:true,alpha:false};
@@ -55,8 +55,11 @@ export class EarthRenderer {
   },options);
   c.addEventListener('pointerup',e=>{if(this.drag&&Math.hypot(e.clientX-this.drag.startX,e.clientY-this.drag.startY)<5)this.pick(e);this.drag=null;},options);
   c.addEventListener('pointercancel',()=>this.drag=null,options);
-  c.addEventListener('wheel',e=>{e.preventDefault();this.targetView=null;this.view.distance=clamp(this.view.distance*Math.exp(e.deltaY*.0015),8,26000000);this.updateView();},{...options,passive:false});
-  c.addEventListener('keydown',e=>{if(['KeyW','KeyA','KeyS','KeyD','KeyQ','KeyE','ShiftLeft','ShiftRight'].includes(e.code)){e.preventDefault();this.controls.add(e.code);this.targetView=null;}},options);
+  c.addEventListener('wheel',e=>{e.preventDefault();this.targetView=null;
+    if(this.controls.has('ShiftLeft')||this.controls.has('ShiftRight'))this.flightSpeed=clamp(this.flightSpeed*Math.exp(-e.deltaY*.002),.1,64);
+    else{this.view.distance=clamp(this.view.distance*Math.exp(e.deltaY*.0015),8,26000000);this.updateView();}
+  },{...options,passive:false});
+  c.addEventListener('keydown',e=>{if(['KeyW','KeyA','KeyS','KeyD','KeyQ','KeyE','Space','ControlLeft','ControlRight','ShiftLeft','ShiftRight'].includes(e.code)){e.preventDefault();this.controls.add(e.code);this.targetView=null;}},options);
   c.addEventListener('keyup',e=>this.controls.delete(e.code),options);c.addEventListener('blur',()=>this.controls.clear(),options);
   window.addEventListener('resize',()=>this.resize(),options);
  }
@@ -84,7 +87,7 @@ export class EarthRenderer {
  tick(now){if(this.disposed||this.renderFailure)return;const dt=Math.min(.05,(now-(this.last||now))/1000);this.last=now;
   if(this.targetView){const t=this.targetView,k=1-Math.exp(-dt*5),diff=((t.lon-this.view.lon+540)%360)-180;this.view.lat+=(t.lat-this.view.lat)*k;this.view.lon+=diff*k;this.view.distance=Math.exp(Math.log(this.view.distance)+(Math.log(t.distance)-Math.log(this.view.distance))*k);this.view.pitch+=(t.pitch-this.view.pitch)*k;this.view.bearing+=(t.bearing-this.view.bearing)*k;
     if(Math.abs(diff)<1e-6&&Math.abs(t.lat-this.view.lat)<1e-6&&Math.abs(t.distance-this.view.distance)<.5){Object.assign(this.view,t);this.targetView=null;}this.updateView();}
-  if(this.controls.size){const fast=this.controls.has('ShiftLeft')||this.controls.has('ShiftRight')?4:1,speed=Math.max(3,this.view.distance*.5)*dt*fast,has=k=>Number(this.controls.has(k));this.pan((has('KeyD')-has('KeyA'))*speed,(has('KeyW')-has('KeyS'))*speed);if(has('KeyQ')||has('KeyE')){this.view.distance=clamp(this.view.distance+(has('KeyE')-has('KeyQ'))*speed,8,26000000);this.updateView();}}
+  if(this.controls.size){const boost=this.controls.has('ShiftLeft')||this.controls.has('ShiftRight')?4:1,base=Math.max(12,Math.pow(Math.max(8,this.view.distance),.82)*1.45),speed=base*dt*boost*this.flightSpeed,has=k=>Number(this.controls.has(k));const east=(has('KeyD')-has('KeyA'))*speed,north=(has('KeyW')-has('KeyS'))*speed;this.motion={east:east/Math.max(dt,.001),north:north/Math.max(dt,.001)};if(east||north)this.pan(east,north);const vertical=has('KeyE')+has('Space')-has('KeyQ')-has('ControlLeft')-has('ControlRight');if(vertical){this.view.distance=clamp(this.view.distance+vertical*speed,8,26000000);this.updateView();}}else this.motion={east:0,north:0};
   try{this.renderer.render(this.scene,this.camera);this.drawCount++;}catch(e){this.renderer.setAnimationLoop(null);this.onError(e);}
  }
  async prepare(areas,{signal,focus:requestedFocus}={}){
