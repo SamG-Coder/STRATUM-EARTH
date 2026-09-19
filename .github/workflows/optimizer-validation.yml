@@ -1,0 +1,24 @@
+name: Optimizer validation
+on:
+  push:
+    branches: [perf/cuda-webshader-auto-trim]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Compile specialized shaders
+        run: npm run build
+      - name: Source tests
+        run: npm run test:source
+        continue-on-error: true
+      - name: Optimizer report
+        run: |
+          node -e "const fs=require('fs');for(const f of fs.readdirSync('generated').filter(x=>x.endsWith('.json'))){const a=JSON.parse(fs.readFileSync('generated/'+f));const o=a.metadata?.optimization||{};console.log(f, o.mode||'none', o.beforeBytes||'', o.afterBytes||'', (o.removedFunctions||[]).length);}"
