@@ -10,4 +10,4 @@ const rules={
  farmCandidates:['farm',[64,1,1],['common','plan','farm']],probeGrammar:['probe',[1,1,1],[...geometry,'probe']]
 };
 export const SPECS=Object.entries(rules).map(([entry,[file,workgroupSize,dependencies]])=>Object.freeze({entry,file,workgroupSize,dependencies}));
-export const RENDER_SPECS=SPECS.filter(s=>!['farmCandidates','probeGrammar'].includes(s.entry));
+export const compilerOptions=spec=>({entry:spec.entry,workgroupSize:spec.workgroupSize,optimize:'specialize'});\nexport const RENDER_SPECS=SPECS.filter(s=>!['farmCandidates','probeGrammar'].includes(s.entry));
