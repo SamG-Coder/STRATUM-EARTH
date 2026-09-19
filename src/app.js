@@ -7,7 +7,13 @@ let seed=Number(params.get('seed')??1788);if(!Number.isInteger(seed)||seed<0||se
 let last=0,mouseX=0,mouseY=0,wheel=0,resizeTimer,noticeTimer,polling=false,resizePending=false;
 let frameStart=0,completed=0,displayFPS=0,frameWindow=performance.now(),lastPoll=0,lastInfo=null;
 const testing=params.has('test');
-const compileConsole=$('compile-console'),compileCount=$('compile-count'),compilePercent=$('compile-percent'),compileJobs=new Map();let compileDone=0,compileTotal=11;
+const compileConsole=$('compile-console'),compileCount=$('compile-count'),compilePercent=$('compile-percent'),compileLines=$('compile-lines'),compileEta=$('compile-eta'),compileJobs=new Map();let compileDone=0,compileTotal=11,totalLines=0,finishedLines=0,startupBegan=performance.now(),lastEta=0;
+function formatEta(ms){if(!Number.isFinite(ms)||ms<=0)return'Calculating ETA…';const s=Math.ceil(ms/1000);return s<60?`~${s}s remaining`:`~${Math.floor(s/60)}m ${s%60}s remaining`;}
+function updateEstimate(){
+ const elapsed=performance.now()-startupBegan,progress=totalLines>0?Math.min(.98,finishedLines/totalLines):compileDone/Math.max(1,compileTotal);
+ if(progress>.03){const estimate=elapsed*(1-progress)/progress;lastEta=lastEta?lastEta*.7+estimate*.3:estimate;compileEta.textContent=formatEta(lastEta);}
+ compileLines.textContent=totalLines?`${totalLines.toLocaleString()} CUDA lines · ${finishedLines.toLocaleString()} processed`:'Scanning CUDA source…';
+}
 const stateLabel={['compile-start']:'TRANSLATING',['compile-done']:'WGSL READY',['pipeline-start']:'GPU PIPELINE',done:'READY'};
 function ensureJob(entry){
  let row=compileJobs.get(entry);if(row)return row;
@@ -18,6 +24,8 @@ function ensureJob(entry){
 }
 function startupProgress(event,fallback){
  const e=typeof event==='string'?{message:event,progress:fallback}:event||{},p=Math.max(0,Math.min(1,Number(e.progress??fallback??0)));
+ if(e.entry&&e.lines){const row0=compileJobs.get(e.entry);if(!row0||!row0.dataset.lines){totalLines+=Number(e.lines);if(row0)row0.dataset.lines=String(e.lines);}}
+ updateEstimate();
  $('progress').style.width=`${Math.round(p*100)}%`;compilePercent.textContent=`${Math.round(p*100)}%`;
  if(e.type==='phase'){
   const m=String(e.message||'Preparing GPU programs'),n=m.match(/Compiling (\d+)/);if(n)compileTotal=Number(n[1]);
@@ -26,18 +34,18 @@ function startupProgress(event,fallback){
   return;
  }
  if(e.entry){
-  const row=ensureJob(e.entry),sub=row.querySelector('small'),state=row.querySelector('em');row.className='console-line '+(e.type==='done'?'done':'active');
-  if(e.type==='compile-start')sub.textContent='CUDA source → portable WGSL';
+  const row=ensureJob(e.entry);if(e.lines&&!row.dataset.lines){row.dataset.lines=String(e.lines);totalLines+=Number(e.lines);}const sub=row.querySelector('small'),state=row.querySelector('em');row.className='console-line '+(e.type==='done'?'done':'active');
+  if(e.type==='queued')sub.textContent=`${Number(e.lines||0).toLocaleString()} CUDA lines · queued`;else if(e.type==='compile-start')sub.textContent=`${Number(e.lines||0).toLocaleString()} CUDA lines · CUDA source → portable WGSL`;
   else if(e.type==='compile-done')sub.textContent='Translation complete · creating native pipeline';
   else if(e.type==='pipeline-start')sub.textContent=String(e.message||'GPU pipeline').replace(/^GPU pipeline\s*[·:]?\s*/,'')||'Creating WebGPU pipeline';
-  else if(e.type==='done'){sub.textContent=e.timing?`${e.message} · translate/load ${Math.round(e.timing.loadOrTranslateMs)}ms · pipeline ${Math.round(e.timing.pipelineMs)}ms`:String(e.message||'Complete');compileDone++;}
+  else if(e.type==='done'){sub.textContent=e.timing?`${Number(e.lines||0).toLocaleString()} lines · ${e.message} · load ${Math.round(e.timing.loadOrTranslateMs)}ms · pipeline ${Math.round(e.timing.pipelineMs)}ms`:String(e.message||'Complete');compileDone++;if(!row.dataset.counted){finishedLines+=Number(e.lines||0);row.dataset.counted='1';}updateEstimate();}
   state.textContent=e.type==='done'&&e.timing?Math.round(e.timing.loadOrTranslateMs+e.timing.pipelineMs)+'ms':(stateLabel[e.type]||'WORKING');
   compileCount.textContent=`${compileDone} / ${compileTotal}`;$('status').textContent=compileDone===compileTotal?'GPU programs ready':`Compiling GPU programs · ${compileDone}/${compileTotal}`;compileConsole.scrollTop=compileConsole.scrollHeight;return;
  }
  if(e.type==='bounds'){
   const row=ensureJob('city bounds');row.className='console-line active';row.querySelector('small').textContent='Exact feature acceleration structure';row.querySelector('em').textContent=Math.round(e.chunk/e.total*100)+'%';$('status').textContent='Building city acceleration';compileConsole.scrollTop=compileConsole.scrollHeight;return;
  }
- if(e.type==='ready'){const row=compileJobs.get('city bounds');if(row){row.className='console-line done';row.querySelector('small').textContent='Exact feature acceleration structure';row.querySelector('em').textContent='READY';}$('status').textContent='STRATUM CITY ready';compilePercent.textContent='100%';}
+ if(e.type==='ready'){finishedLines=totalLines;updateEstimate();compileEta.textContent='Complete';const row=compileJobs.get('city bounds');if(row){row.className='console-line done';row.querySelector('small').textContent='Exact feature acceleration structure';row.querySelector('em').textContent='READY';}$('status').textContent='STRATUM CITY ready';compilePercent.textContent='100%';}
 }
 const views={1:['A city, selected.<br>Not streamed.','Finite Manhattan-inspired plan. One detailed geometry definition.'],2:['Life between towers.','Storefronts, fire escapes and windows with interior depth.'],3:['A second skyline.','Glass towers and stepped masonry above a lower-rise city.'],4:['The shape plan.','Island, waterfront, parks and skyline anchors are explicit constraints.'],5:['At the waterline.','One-bounce city reflections and procedural water.'],6:['Behind the glass.','Seeded interiors change with the viewing angle.']};
 function notice(text){$('notice').textContent=text;$('notice').classList.add('show');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').classList.remove('show'),3800);}
