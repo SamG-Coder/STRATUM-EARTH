@@ -1,0 +1,21 @@
+--- a/tools/earth/browser-test.py
++++ b/tools/earth/browser-test.py
+@@ -14,7 +14,7 @@
+  output=ROOT/'reports'/'earth';output.mkdir(parents=True,exist_ok=True)
+  try:
+   async with async_playwright() as p:
+-   options={'headless':True,'args':['--enable-unsafe-webgpu','--use-angle=swiftshader','--no-sandbox']}
++   options={'headless':True,'args':['--enable-unsafe-webgpu','--use-angle=swiftshader','--disable-gpu-watchdog','--no-sandbox']}
+@@ -22,10 +22,10 @@
+    def log(m):
+-    messages.append({'type':m.type,'text':m.text});print(m.type,m.text,flush=True)
++    messages.append({'type':m.type,'text':m.text});print(round(asyncio.get_running_loop().time(),2),m.type,m.text,flush=True)
+    page.on('console',log)
+    await page.goto('http://localhost:8099/tests/earth/gpu.html');await page.wait_for_function('window.testReady')
+    try:
+-    gpu=await page.evaluate('window.runEarthTests()')
++    gpu=await asyncio.wait_for(page.evaluate('window.runEarthTests()'), timeout=180)
+    except Exception as e:
+@@ -57,1 +57,1 @@
+-   report={'gpu':gpu,'browser':browser.version,'softwareAdapterRequested':True,'ui':{'starts':True,'sourceFootprintLoaded':True,'latestLocationWins':True,'programsAfterLocationChanges':final},'errors':errors,'liveProviderTest':False}
++   report={'gpu':gpu,'browser':browser.version,'softwareAdapterRequested':True,'softwareWatchdogDisabled':True,'launchArgs':options['args'],'ui':{'starts':True,'sourceFootprintLoaded':True,'latestLocationWins':True,'programsAfterLocationChanges':final},'errors':errors,'liveProviderTest':False}
