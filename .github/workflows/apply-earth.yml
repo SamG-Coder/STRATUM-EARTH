@@ -1,6 +1,6 @@
 name: Apply and validate Earth implementation
-# One-time source transport on the isolated implementation branch. Payloads and
-# this workflow remove themselves in the normal source commit before testing.
+# One-time source transport on the isolated implementation branch. CI writes
+# source only. Workflow changes/removal are made through the authorized connector.
 on:
   push:
     branches: [feature/geospatial-earth-foundation]
@@ -23,10 +23,10 @@ jobs:
           set -euo pipefail
           node --input-type=module -e "import fs from 'node:fs'; import zlib from 'node:zlib'; const b=[1,2,3,4].map(i=>fs.readFileSync('.earth-patch-'+i+'.b64','utf8')).join(''); fs.writeFileSync(process.env.RUNNER_TEMP+'/earth.patch',zlib.brotliDecompressSync(Buffer.from(b,'base64')));"
           echo "c6ff7b4c33521100054d051039f79b2df6d1138fbcaeb8cedadeeb5c974b8193  $RUNNER_TEMP/earth.patch" | sha256sum -c -
-          git apply --check "$RUNNER_TEMP/earth.patch"
-          git apply "$RUNNER_TEMP/earth.patch"
-          git diff --exit-code -- kernels vendor/cuda-webshader
-          git rm .earth-patch-1.b64 .earth-patch-2.b64 .earth-patch-3.b64 .earth-patch-4.b64 .github/workflows/apply-earth.yml
+          git apply --check --exclude='.github/workflows/*' "$RUNNER_TEMP/earth.patch"
+          git apply --exclude='.github/workflows/*' "$RUNNER_TEMP/earth.patch"
+          git diff --exit-code -- kernels vendor/cuda-webshader .github/workflows
+          git rm .earth-patch-1.b64 .earth-patch-2.b64 .earth-patch-3.b64 .earth-patch-4.b64
           git add --all
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Implement WGS84 Earth geography streaming and CUDA detail farm'
           git push origin HEAD:refs/heads/feature/geospatial-earth-foundation

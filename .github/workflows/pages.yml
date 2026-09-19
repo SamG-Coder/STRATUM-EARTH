@@ -1,4 +1,4 @@
-name: Validate seed-farmed city and deploy Pages
+name: Validate STRATUM EARTH and deploy Pages
 on:
   push:
     branches: [main]
@@ -13,18 +13,34 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Compile all CUDA kernels and run source plus exact-geometry tests
-        run: |
-          npm run build
-          npm run test:source
-          node tools/native-test.mjs
-      - name: Package finite city and seed farmer
+          cache: npm
+      - run: npm ci
+      - name: Compile Earth and preserved city kernels
+        run: npm run build
+      - name: Coordinate, data, cache, race and legacy regression tests
+        run: npm run test:source
+      - name: Native exact geometry regression
+        run: node tools/native-test.mjs
+      - name: Install browser for portable regression
+        run: npx playwright install --with-deps chromium
+      - name: Browser worker, software WebGPU farm and scene regression
+        env:
+          CW_SOFTWARE_GPU: '1'
+        run: npm run test:browser
+      - name: Package Earth and legacy city
         run: npm run pages
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: earth-validation-${{ github.sha }}
+          path: reports/
+          retention-days: 14
       - uses: actions/upload-pages-artifact@v4
         if: github.event_name != 'pull_request'
         with:
