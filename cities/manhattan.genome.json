@@ -1,6 +1,6 @@
 {
   "schema": "stratum.city-genome.v1",
-  "name": "Manhattan / Harbour — farmed",
+  "name": "Manhattan",
   "planFile": "manhattan.plan.json",
   "planHash": "97908b45b0fefb5c5d88159af61f1a06f675de404207c92002150cb762e99137",
   "descriptorHash": "c5e0f88eed2c3897e7afe6cc5f6e2385ce482c148017d7ff309c84680bd91ca9",

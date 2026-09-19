@@ -1,6 +1,6 @@
 {
   "schema": "stratum.shape-plan.v1",
-  "name": "Melbourne / Birrarung Garden City",
+  "name": "Melbourne",
   "description": "An art-directed Melbourne-inspired planned city: a compact gridded CBD, two skyline clusters, a western river inlet and generous garden precincts. Compressed design study, not surveyed GIS or a literal Melbourne reconstruction.",
   "cellSize": 48,
   "coastline": [
@@ -112,7 +112,7 @@
       "halfDepth": 160
     },
     {
-      "name": "Birrarung riverside garden",
+      "name": "Yarra riverside garden",
       "x": 350,
       "z": -70,
       "halfWidth": 185,
@@ -205,5 +205,5 @@
   ],
   "targetCoverage": 0.55,
   "targetHeightVariation": 0.68,
-  "provenance": "Original procedural design inspired by Melbourne's Hoddle Grid, Birrarung and garden precincts. All coordinates, heights and statistical targets are artistic choices. Source context: https://participate.melbourne.vic.gov.au/hoddlegridheritage"
+  "provenance": "Original procedural design inspired by Melbourne's Hoddle Grid, Yarra River and garden precincts. All coordinates, heights and statistical targets are artistic choices. Source context: https://participate.melbourne.vic.gov.au/hoddlegridheritage"
 }

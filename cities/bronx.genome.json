@@ -1,6 +1,6 @@
 {
   "schema": "stratum.city-genome.v1",
-  "name": "Bronx / Upper Harlem Study — farmed",
+  "name": "Bronx",
   "planFile": "bronx.plan.json",
   "planHash": "b1f7573bfa895f57c4dc778cdec90cd78b87ad28883ffc4be4c052e4db088f37",
   "descriptorHash": "c5e0f88eed2c3897e7afe6cc5f6e2385ce482c148017d7ff309c84680bd91ca9",

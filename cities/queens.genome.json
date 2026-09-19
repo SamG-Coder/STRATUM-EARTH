@@ -1,6 +1,6 @@
 {
   "schema": "stratum.city-genome.v1",
-  "name": "Queens / Long Island City Study — farmed",
+  "name": "Queens",
   "planFile": "queens.plan.json",
   "planHash": "980d9077bd0022d2d1d8d14e34e7086ad38409b88ea24eb91905555b9f6ee2e7",
   "descriptorHash": "c5e0f88eed2c3897e7afe6cc5f6e2385ce482c148017d7ff309c84680bd91ca9",

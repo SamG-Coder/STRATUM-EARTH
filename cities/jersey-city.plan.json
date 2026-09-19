@@ -1,6 +1,6 @@
 {
   "schema": "stratum.shape-plan.v1",
-  "name": "Jersey City / Newark Bay Study",
+  "name": "Jersey City",
   "description": "Art-directed Jersey City and Newark waterfront-inspired connected New York metro region; design constraints, not surveyed GIS.",
   "cellSize": 48,
   "coastline": [

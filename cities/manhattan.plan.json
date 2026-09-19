@@ -1,6 +1,6 @@
 {
   "schema": "stratum.shape-plan.v1",
-  "name": "Manhattan / Harbour Study",
+  "name": "Manhattan",
   "description": "Art-directed compressed Manhattan-inspired island. Coordinates, district targets and landmarks are design constraints, not surveyed NYC GIS or measured city statistics.",
   "cellSize": 48,
   "coastline": [

@@ -1,6 +1,6 @@
 {
   "schema": "stratum.city-genome.v1",
-  "name": "Jersey City / Newark Bay Study — farmed",
+  "name": "Jersey City",
   "planFile": "jersey-city.plan.json",
   "planHash": "84eb08f0de8a8b7058705e7701978c12b94d73fdde2a5c7e152e18688cbf0158",
   "descriptorHash": "c5e0f88eed2c3897e7afe6cc5f6e2385ce482c148017d7ff309c84680bd91ca9",

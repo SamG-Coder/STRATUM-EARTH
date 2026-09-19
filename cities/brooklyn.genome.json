@@ -1,6 +1,6 @@
 {
   "schema": "stratum.city-genome.v1",
-  "name": "Brooklyn / East River Study — farmed",
+  "name": "Brooklyn",
   "planFile": "brooklyn.plan.json",
   "planHash": "8599853201efcaa87bbfa94ad9dd57193debefb4f6d876bc8b36862528ac0602",
   "descriptorHash": "c5e0f88eed2c3897e7afe6cc5f6e2385ce482c148017d7ff309c84680bd91ca9",

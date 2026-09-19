@@ -2,9 +2,9 @@ export const METROS=Object.freeze({
   nyc:Object.freeze({name:'New York Metro',regions:Object.freeze([
     {id:'manhattan',name:'Manhattan',plan:'manhattan.plan.json',genome:'manhattan.genome.json',links:['brooklyn','queens','bronx','jersey-city']},
     {id:'brooklyn',name:'Brooklyn',plan:'brooklyn.plan.json',genome:'brooklyn.genome.json',links:['manhattan','queens']},
-    {id:'queens',name:'Queens / LIC',plan:'queens.plan.json',genome:'queens.genome.json',links:['manhattan','brooklyn','bronx']},
+    {id:'queens',name:'Queens',plan:'queens.plan.json',genome:'queens.genome.json',links:['manhattan','brooklyn','bronx']},
     {id:'bronx',name:'Bronx',plan:'bronx.plan.json',genome:'bronx.genome.json',links:['manhattan','queens']},
-    {id:'jersey-city',name:'Jersey City / Newark',plan:'jersey-city.plan.json',genome:'jersey-city.genome.json',links:['manhattan']}
+    {id:'jersey-city',name:'Jersey City',plan:'jersey-city.plan.json',genome:'jersey-city.genome.json',links:['manhattan']}
   ])})
 });
 export const DEFAULT_METRO='nyc',DEFAULT_REGION='manhattan';

@@ -1,6 +1,6 @@
 {
   "schema": "stratum.city-genome.v1",
-  "name": "Melbourne / Birrarung Garden City — farmed",
+  "name": "Melbourne",
   "planFile": "melbourne.plan.json",
   "planHash": "d44a261767c0acd66974149b338ee3ee21b6c88a7e568f17764ce34ec1abfd88",
   "descriptorHash": "612a01958ad395bee9c8b62e38ec8118bcf5553aba19a2a74c27c63d72828ef0",
