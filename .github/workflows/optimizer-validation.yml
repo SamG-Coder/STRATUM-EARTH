@@ -14,11 +14,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - run: npm ci
       - name: Compile specialized shaders
         run: npm run build
       - name: Source tests
         run: npm run test:source
-        continue-on-error: true
       - name: Optimizer report
         run: |
           node -e "const fs=require('fs');for(const f of fs.readdirSync('generated').filter(x=>x.endsWith('.json'))){const a=JSON.parse(fs.readFileSync('generated/'+f));const o=a.metadata?.optimization||{};console.log(f, o.mode||'none', o.beforeBytes||'', o.afterBytes||'', (o.removedFunctions||[]).length);}"

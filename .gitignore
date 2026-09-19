@@ -7,3 +7,8 @@ stratum-native.exe
 generated/
 .build-generated/
 Stratum.cu
+
+# Reproducible Earth browser dependencies and artifacts
+vendor/earth/
+generated-earth/
+reports/

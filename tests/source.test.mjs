@@ -26,5 +26,5 @@ test('runtime can compile from CUDA without generated/ and exposes driver timing
  try{const e=await new Engine(canvas).init({device,adapter:{info:{vendor:'API TEST DOUBLE'}},width:64,height:64,warmup:false});assert.equal(e.loader.timings.length,11);assert.ok(e.loader.timings.every(t=>t.source==='runtime'));await e.dispose();}finally{globalThis.fetch=original;}
 });
 test('app DOM hooks exist and production links target this repository',async()=>{
- const app=await read('src/app.js'),html=await read('index.html');for(const m of app.matchAll(/\$\('([^']+)'\)/g))assert.ok(html.includes('id="'+m[1]+'"'),'Missing #'+m[1]);const pkg=JSON.parse(await read('package.json'));assert.equal(pkg.homepage,'https://samg-coder.github.io/stratum-city/');
+ const app=await read('src/app.js'),html=await read('city.html');for(const m of app.matchAll(/\$\('([^']+)'\)/g))assert.ok(html.includes('id="'+m[1]+'"'),'Missing #'+m[1]);const pkg=JSON.parse(await read('package.json'));assert.equal(pkg.homepage,'https://samg-coder.github.io/STRATUM-EARTH/');
 });
