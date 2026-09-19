@@ -33,6 +33,8 @@ jobs:
         env:
           CW_SOFTWARE_GPU: '1'
         run: npm run test:browser
+      - name: Rendered globe pixel validation
+        run: node tools/earth-pixel-test.mjs
       - name: Package Earth and legacy city
         run: npm run pages
       - uses: actions/upload-artifact@v4
