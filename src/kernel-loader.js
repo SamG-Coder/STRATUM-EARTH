@@ -1,4 +1,4 @@
-import {SPECS} from './kernel-specs.js';import {COMPILER_STAMP} from './compiler-stamp.js';
+import {trimWgsl} from './wgsl-trim.js';import {SPECS} from './kernel-specs.js';import {COMPILER_STAMP} from './compiler-stamp.js';
 export class KernelLoader{
  constructor(runtime,onProgress=()=>{}){this.runtime=runtime;this.onProgress=onProgress;this.sources=new Map();this.loaded=new Map();this.timings=[];this.workers=[];this.nextWorker=0;this.nextId=0;this.pending=new Map();this.workerCount=Math.max(2,Math.min(6,Number(globalThis.navigator?.hardwareConcurrency||4)-1));}
  emit(event){this.onProgress(event);}
@@ -28,8 +28,10 @@ export class KernelLoader{
   if(!artifact){this.emit({type:'compile-start',entry,message:'CUDA → WGSL',progress,lines,bytes:bytesLength});artifact=await this.compile(source,spec);this.emit({type:'compile-done',entry,message:'WGSL ready',progress,lines,bytes:bytesLength});artifact.stratumHash=hash;artifact.compilerStamp=COMPILER_STAMP;}
   if(!artifact.metadata||artifact.metadata.bindings.length>8||artifact.metadata.workgroupStorageBytes>16384)throw Error('Invalid portable shader budget for '+entry);
   try{await cache?.put(cacheURL,new Response(JSON.stringify(artifact),{headers:{'Content-Type':'application/json'}}));}catch{}
-  const translated=performance.now();this.emit({type:'pipeline-start',entry,message:'GPU pipeline · '+origin,progress,lines,bytes:bytesLength});
-  const kernel=await this.runtime.kernel(artifact);this.loaded.set(entry,kernel);const timing={entry,source:origin,loadOrTranslateMs:translated-begun,pipelineMs:performance.now()-translated};this.timings.push(timing);this.emit({type:'done',entry,message:origin,progress,timing,lines,bytes:bytesLength});return kernel;
+  const translated=performance.now(),rawWgslBytes=artifact.wgsl?.length||0,trimBegun=performance.now(),trimmed=trimWgsl(artifact),trimMs=performance.now()-trimBegun;artifact=trimmed.artifact;
+  const trimStats={...trimmed.stats,trimMs};this.emit({type:'trim-done',entry,message:'WGSL trimmed',progress,lines,bytes:bytesLength,trim:trimStats});
+  this.emit({type:'pipeline-start',entry,message:'GPU pipeline · '+origin,progress,lines,bytes:bytesLength,trim:trimStats});
+  const kernel=await this.runtime.kernel(artifact);this.loaded.set(entry,kernel);const timing={entry,source:origin,loadOrTranslateMs:translated-begun,trimMs,pipelineMs:performance.now()-translated};this.timings.push(timing);this.emit({type:'done',entry,message:origin,progress,timing,lines,bytes:bytesLength,trim:trimStats});return kernel;
  }
  dispose(){for(const w of this.workers)w.terminate();this.workers=[];for(const p of this.pending.values())p.reject(Error('Compiler disposed'));this.pending.clear();}
 }
