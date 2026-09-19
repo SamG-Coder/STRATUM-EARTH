@@ -1,10 +1,9 @@
 name: Apply and validate compute Earth
-# One-time transport for an exact reviewed source patch on the implementation branch.
-# Payload files and this write-enabled workflow remove themselves after validation.
+# One-time transport; payload and write-enabled workflow remove themselves.
 on:
   push:
     branches: [feat/compute-earth]
-    paths: ['.earth-patch-*.b64', '.github/workflows/apply-earth.yml']
+    paths: ['.earth-patch-*.b64', '.earth-diagnostics.patch', '.github/workflows/apply-earth.yml']
 permissions:
   contents: write
 jobs:
@@ -29,6 +28,8 @@ jobs:
           echo "2d637a76768a4f2ce9478296bfe1ebdfb40efb6bc3624660c2d1e81122b2d3bb  $RUNNER_TEMP/earth.patch" | sha256sum -c -
           git apply --check "$RUNNER_TEMP/earth.patch"
           git apply "$RUNNER_TEMP/earth.patch"
+          git apply --check .earth-diagnostics.patch
+          git apply .earth-diagnostics.patch
       - name: Compile kernels and execute all source and native regressions
         run: |
           npm run build
@@ -53,7 +54,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git rm .earth-patch-1.b64 .earth-patch-2.b64 .earth-patch-3.b64 .earth-patch-4.b64 .earth-patch-5.b64 .earth-patch-6.b64 .earth-patch-7.b64 .github/workflows/apply-earth.yml
+          git rm .earth-patch-1.b64 .earth-patch-2.b64 .earth-patch-3.b64 .earth-patch-4.b64 .earth-patch-5.b64 .earth-patch-6.b64 .earth-patch-7.b64 .earth-diagnostics.patch .github/workflows/apply-earth.yml
           git add .github/workflows/earth-validation.yml .gitignore README.md city.html docs/city-laboratory.md docs/earth earth.css index.html kernels/earth package.json server.mjs src/compiler-stamp.js src/earth tests/earth tests/source.test.mjs tools/earth tools/pages.mjs
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Implement CUDA-only geodetic Earth with live data and constrained GPU seed farming'
           git push origin HEAD:refs/heads/feat/compute-earth
