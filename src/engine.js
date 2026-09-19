@@ -40,7 +40,14 @@ export class Engine{
   if(this.disposed)throw Error('Renderer disposed');const timed=!!this.queries&&!this.timingBusy&&draw&&this.frames%24===0;this.input[23]=this.resizeDirty?1:0;this.resizeDirty=false;this.runtime.write(this.buffers.I,this.input);this.input[23]=0;
   this.calls.stepCamera.setScalars({width:this.width,height:this.height,dt:Math.max(0,Math.min(.1,dt))});this.stage(0,timed).dispatch(this.calls.stepCamera,[1]).submit();
   if(draw){
-   for(const [stage,name,scale]of [[1,'tracePrimary',1],[2,'reflectPixels',2],[3,'shadePixels',1]]){const b=this.stage(stage,timed),w=Math.ceil(this.width/scale),h=Math.ceil(this.height/scale);for(let y=0;y<h;y+=32){const count=Math.min(32,h-y);b.dispatch(this.calls[name].setScalars({rowStart:y,rowCount:count}),[Math.ceil(w/8),Math.ceil(count/8)]);}b.submit();}
+   // Each pixel kernel already has a 2-D global invocation guard. Dispatch the full image
+   // once instead of slicing it into 32-row bands. The old path emitted ~150 compute
+   // dispatches per frame at 1920p and repeatedly rewrote scalar uniforms; that CPU/WebGPU
+   // submission overhead was large enough to hide the actual GPU timings.
+   for(const [stage,name,scale]of [[1,'tracePrimary',1],[2,'reflectPixels',2],[3,'shadePixels',1]]){
+    const b=this.stage(stage,timed),w=Math.ceil(this.width/scale),h=Math.ceil(this.height/scale);
+    b.dispatch(this.calls[name].setScalars({rowStart:0,rowCount:h}),[Math.ceil(w/8),Math.ceil(h/8)]).submit();
+   }
    const b=this.stage(4,timed);b.dispatch(this.calls.resolveFrame,[Math.ceil(this.width/8),Math.ceil(this.height/8)]).endPass();if(this.context)b.encoder.copyBufferToTexture({buffer:this.buffers.Pixels.gpuBuffer,bytesPerRow:this.width*4,rowsPerImage:this.height},{texture:this.context.getCurrentTexture()},[this.width,this.height]);
    if(timed){b.encoder.resolveQuerySet(this.queries,0,10,this.queryResolve,0);b.encoder.copyBufferToBuffer(this.queryResolve,0,this.queryRead,0,80);}b.submit();if(timed)this.readTimings();
   }this.frames++;
