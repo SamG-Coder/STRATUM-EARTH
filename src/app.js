@@ -7,21 +7,38 @@ let seed=Number(params.get('seed')??1788);if(!Number.isInteger(seed)||seed<0||se
 let last=0,mouseX=0,mouseY=0,wheel=0,resizeTimer,noticeTimer,polling=false,resizePending=false;
 let frameStart=0,completed=0,displayFPS=0,frameWindow=performance.now(),lastPoll=0,lastInfo=null;
 const testing=params.has('test');
-const compileConsole=$('compile-console'),compileCount=$('compile-count'),compileJobs=new Map();let compileDone=0,compileTotal=11;
-function startupProgress(event,fallback){
- const e=typeof event==='string'?{message:event,progress:fallback}:event||{};const p=Number(e.progress??fallback??0);$('progress').style.width=`${Math.round(p*100)}%`;
- if(e.type==='phase'){const m=String(e.message||'Starting');$('status').textContent=m;const n=m.match(/Compiling (\d+)/);if(n)compileTotal=Number(n[1]);compileCount.textContent=`${compileDone} / ${compileTotal}`;return;}
- if(e.entry){
-  let row=compileJobs.get(e.entry);if(!row){row=document.createElement('div');row.className='console-line active';row.innerHTML='<span></span><b></b><em></em>';row.children[0].textContent=e.entry;compileConsole.append(row);compileJobs.set(e.entry,row);}
-  row.className='console-line '+(e.type==='done'?'done':'active');row.children[1].textContent=e.message||e.type;
-  if(e.type==='done'){compileDone++;row.children[2].textContent=e.timing?Math.round(e.timing.loadOrTranslateMs+e.timing.pipelineMs)+'ms':'DONE';}
-  else row.children[2].textContent=e.type==='compile-start'?'CUDA':e.type==='compile-done'?'WGSL':'GPU';
-  compileCount.textContent=`${compileDone} / ${compileTotal}`;compileConsole.scrollTop=compileConsole.scrollHeight;$('status').textContent=`GPU programs · ${compileDone}/${compileTotal} ready`;return;
- }
- if(e.type==='bounds'){let row=compileJobs.get('bounds');if(!row){row=document.createElement('div');row.className='console-line active';row.innerHTML='<span>city bounds</span><b></b><em></em>';compileConsole.append(row);compileJobs.set('bounds',row);}row.children[1].textContent=e.message;row.children[2].textContent=Math.round(e.chunk/e.total*100)+'%';$('status').textContent=e.message;return;}
- if(e.type==='ready'){const row=compileJobs.get('bounds');if(row){row.className='console-line done';row.children[2].textContent='DONE';}$('status').textContent='Ready';}
+const compileConsole=$('compile-console'),compileCount=$('compile-count'),compilePercent=$('compile-percent'),compileJobs=new Map();let compileDone=0,compileTotal=11;
+const stateLabel={['compile-start']:'TRANSLATING',['compile-done']:'WGSL READY',['pipeline-start']:'GPU PIPELINE',done:'READY'};
+function ensureJob(entry){
+ let row=compileJobs.get(entry);if(row)return row;
+ row=document.createElement('div');row.className='console-line active';row.dataset.entry=entry;
+ const icon=document.createElement('i');icon.className='job-icon';icon.append(document.createElement('span'));
+ const copy=document.createElement('div');copy.className='job-copy';const title=document.createElement('b'),sub=document.createElement('small');title.textContent=entry;sub.textContent='Queued';copy.append(title,sub);
+ const state=document.createElement('em');state.textContent='QUEUED';row.append(icon,copy,state);compileConsole.append(row);compileJobs.set(entry,row);return row;
 }
-
+function startupProgress(event,fallback){
+ const e=typeof event==='string'?{message:event,progress:fallback}:event||{},p=Math.max(0,Math.min(1,Number(e.progress??fallback??0)));
+ $('progress').style.width=`${Math.round(p*100)}%`;compilePercent.textContent=`${Math.round(p*100)}%`;
+ if(e.type==='phase'){
+  const m=String(e.message||'Preparing GPU programs'),n=m.match(/Compiling (\d+)/);if(n)compileTotal=Number(n[1]);
+  compileCount.textContent=`${compileDone} / ${compileTotal}`;$('status').textContent='Preparing GPU programs';
+  const boot=compileConsole.querySelector('[data-entry="boot"]');if(boot){boot.className='console-line done';boot.querySelector('b').textContent='City definition loaded';boot.querySelector('small').textContent='Shape plan + farmed genome';boot.querySelector('em').textContent='READY';}
+  return;
+ }
+ if(e.entry){
+  const row=ensureJob(e.entry),sub=row.querySelector('small'),state=row.querySelector('em');row.className='console-line '+(e.type==='done'?'done':'active');
+  if(e.type==='compile-start')sub.textContent='CUDA source → portable WGSL';
+  else if(e.type==='compile-done')sub.textContent='Translation complete · creating native pipeline';
+  else if(e.type==='pipeline-start')sub.textContent=String(e.message||'GPU pipeline').replace(/^GPU pipeline\s*[·:]?\s*/,'')||'Creating WebGPU pipeline';
+  else if(e.type==='done'){sub.textContent=e.timing?`${e.message} · translate/load ${Math.round(e.timing.loadOrTranslateMs)}ms · pipeline ${Math.round(e.timing.pipelineMs)}ms`:String(e.message||'Complete');compileDone++;}
+  state.textContent=e.type==='done'&&e.timing?Math.round(e.timing.loadOrTranslateMs+e.timing.pipelineMs)+'ms':(stateLabel[e.type]||'WORKING');
+  compileCount.textContent=`${compileDone} / ${compileTotal}`;$('status').textContent=compileDone===compileTotal?'GPU programs ready':`Compiling GPU programs · ${compileDone}/${compileTotal}`;compileConsole.scrollTop=compileConsole.scrollHeight;return;
+ }
+ if(e.type==='bounds'){
+  const row=ensureJob('city bounds');row.className='console-line active';row.querySelector('small').textContent='Exact feature acceleration structure';row.querySelector('em').textContent=Math.round(e.chunk/e.total*100)+'%';$('status').textContent='Building city acceleration';compileConsole.scrollTop=compileConsole.scrollHeight;return;
+ }
+ if(e.type==='ready'){const row=compileJobs.get('city bounds');if(row){row.className='console-line done';row.querySelector('small').textContent='Exact feature acceleration structure';row.querySelector('em').textContent='READY';}$('status').textContent='STRATUM CITY ready';compilePercent.textContent='100%';}
+}
 const views={1:['A city, selected.<br>Not streamed.','Finite Manhattan-inspired plan. One detailed geometry definition.'],2:['Life between towers.','Storefronts, fire escapes and windows with interior depth.'],3:['A second skyline.','Glass towers and stepped masonry above a lower-rise city.'],4:['The shape plan.','Island, waterfront, parks and skyline anchors are explicit constraints.'],5:['At the waterline.','One-bounce city reflections and procedural water.'],6:['Behind the glass.','Seeded interiors change with the viewing angle.']};
 function notice(text){$('notice').textContent=text;$('notice').classList.add('show');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').classList.remove('show'),3800);}
 function fatal(error){if(faulted)return;faulted=true;console.error(error);$('boot').hidden=false;$('status').textContent='The renderer could not start.';$('detail').textContent=String(error?.message??error);$('retry').hidden=false;document.body.classList.remove('ready');}
