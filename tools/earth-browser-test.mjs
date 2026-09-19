@@ -25,7 +25,7 @@ try{
  assert.ok(await page.evaluate(()=>!!window.stratumEarth),await page.locator('#status').textContent());
  await page.waitForFunction(()=>window.stratumEarth.renderer.drawCount>4,{},{timeout:45000});
  await page.screenshot({path:path.join(reportDir,'earth-globe.png')});tests.push('Globe initializes beneath /STRATUM-EARTH/ with local dependencies');
- await page.evaluate(()=>{stratumEarth.renderer.goTo(-37.814,144.964,430,{animate:false});});
+ await page.evaluate(()=>{document.querySelector('#automatic').checked=false;stratumEarth.renderer.goTo(-37.814,144.964,430,{animate:false});});
  await page.click('#load-area');await page.waitForFunction(()=>stratumEarth.renderer.active?.userData.features.length===8,{},{timeout:45000});
  const stats=await page.evaluate(()=>stratumEarth.stats());assert.equal(stats.features,8);assert.equal(stats.tiles,1);assert.equal(network.length,1);tests.push('Bounded source fetch → real module worker → detail farm → mapped extrusion → render');
  const exact=await page.evaluate(async()=>{const {farmCPU}=await import('./earth/farm.js');const a=stratumEarth.renderer.active.userData;return JSON.stringify(farmCPU(a.features.filter(f=>f.kind==='building')))===JSON.stringify(a.details);});assert.ok(exact);tests.push('Every synthetic building GPU detail result matches the integer CPU reference exactly');
