@@ -1,89 +1,57 @@
-# STRATUM CITY
-## Farm the seed. Keep the city.
+# STRATUM EARTH
 
-[**City viewer**](https://samg-coder.github.io/stratum-city/) · [**GPU Seed Farm**](https://samg-coder.github.io/stratum-city/farm.html) · [**Real-device checks**](https://samg-coder.github.io/stratum-city/tests/browser.html)
+**Geography in. World out.** A browser Earth renderer authored in CUDA and translated to WebGPU compute. There is no Three.js scene graph, globe mesh, terrain mesh, GLTF loader, satellite colour texture or raster draw pipeline in the Earth path.
 
-A **finite, Manhattan-inspired** continuation of STRATUM. A shape plan fixes the island, parks, street exclusions, waterfront and skyline anchors. An offline search selects a compact genome against district-height and architecture-mixture targets. CUDA source reconstructs the detailed city; WebGPU renders it.
-
-This is **not a surveyed reconstruction of New York**. The plan is an art-directed, compressed island inspired by the aerial reference. Its coordinates, targets and landmarks are design choices, not GIS data, measured NYC statistics or identifications of actual buildings. No image, mesh or city texture pack is used as a scene asset.
+The default page is now the Earth explorer. The original Stratum City experiment is retained at **`city.html`**; its original CUDA kernels have not been changed.
 
 ## Run
 
-Use Node.js 20 or later. No npm install, API account, model download or paid service is required.
-
 ```sh
 npm start
+# http://localhost:8089
 ```
 
-Or double-click `START.bat`; on macOS/Linux run `./start.sh`. Open the local URL printed in the terminal. Do not open `index.html` using `file://`.
+Node 20+ is sufficient to build and serve. The browser needs WebGPU and HTTPS or localhost. `START.bat` still builds and launches the local server. Open the Explorer, pick a destination or enter latitude/longitude, and select **Explore this location**. Drag to orbit or look, scroll to change altitude, WASD to move, Q/E to climb or descend, and Shift to boost. Click a building to inspect its source and generated properties.
 
-Generated WGSL and the combined `Stratum.cu` are build outputs, not checked-in sources. The ZIP includes current outputs for convenience; `npm run build` regenerates them. The launchers build the optional shader accelerators before starting. At boot the browser checks the **exact CUDA source + kernel configuration + compiler fingerprint** before accepting a generated artifact or browser-cache entry. If those do not match, it compiles from `.cu` in a worker. The driver still creates a WebGPU pipeline; compiled WGSL is not a precompiled native GPU binary. Startup reports these phases separately. The geometry and fitness probe kernels are not compiled during normal viewer startup.
+## What runs
 
-High defaults to 1600 pixels wide on desktop, 768 on coarse-pointer devices. Reflections can be turned off separately without replacing the buildings. Pipeline startup cost, hardware frame rate and cross-driver behaviour still need testing on the target GPU.
-
-## What this version adds
-
-- Finite island/coastline, Battery-like garden, uptown park, regular street exclusions, a diagonal lower-city avenue, waterfront and piers.
-- Glass towers, stepped masonry high-rises, lower-rise loft buildings and retained detailed STRATUM architecture. Storefront glazing, awnings, rooftop mechanical boxes, water tanks, fire escapes, benches and street lamps are analytic geometry.
-- A real seed-farming evaluator and two search front ends: native offline CLI and browser WebGPU. Both use `describeCityLot()` and `measureGenome()` from the same CUDA files.
-- View-dependent box-room interiors behind glass: seeded room depth, walls/ceiling/floor, furniture solids, lights and blinds.
-- Half-resolution **one-bounce city reflections** using the same exact ray-query function as primary visibility. Glass and water can reflect offscreen architecture, not only the current screen image. Full-resolution reconstruction rejects incompatible depth/normal/material samples and uses the sky where no suitable sample exists.
-
-The supplied genome was selected from **8,192 evaluated candidates**. At this seed the finite plan contains **954 buildings and 451 park-designated lots**, plus water, streets and piers. These are results for this plan/genome, not claims about actual Manhattan.
-
-## Seed farming
-
-`cities/manhattan.plan.json` is the human-readable shape plan. `cities/manhattan.genome.json` is the saved winner, with genes, plan hash, descriptor hash, training/audit metrics, search history and finalists.
-
-A genome contains twelve scalar entries: seed, base height, downtown rise, midtown rise, glass mixture, coverage, height variation, setback amount, palette, facade seed, interior seed and format version. Coastline/park/landmark constraints are explicit rather than something a random seed is expected to discover accidentally.
-
-The fitness evaluates district mean heights, tall-building fractions, glass-family fractions, footprint coverage and height variation. Candidate mutation/crossover changes controllable parameters; seed replacement changes the deterministic realization. An elite set retains strong, nonduplicate candidates. A different sample set audits the finalists before choosing the exported winner. This is a procedural parameter search, not neural training or proof of photographic similarity.
-
-### Native offline search
-
-Requires a C++17 compiler (`g++` by default; set `CXX` for a different compiler). It compiles the same descriptor/fitness CUDA as native C++:
-
-```sh
-npm run farm -- --candidates 8192 --seed 20260919
-npm run farm -- --plan cities/manhattan.plan.json --out cities/my-city.genome.json --candidates 16384
+```
+Browser fetch / decode / cache geographic descriptors
+                 |
+WGS84 ECEF doubles -> camera-relative ENU floats
+                 |
+CUDA -> WebShader -> four compute programs
+    earthLandMask   Source coastline edges -> geographic coverage
+    earthFarm       Known constraints + 192 candidate evaluations/object
+    earthGlobe      Analytic WGS84 ellipsoid and procedural appearance
+    earthSurface    Source DEM + polygon walls/roofs + generated facades
+                 |
+GPU RGBA buffer -> copyBufferToTexture -> canvas
 ```
 
-The search writes a genome, not a large generated city file. Stop changing code to try a result: **Field notes → Import plan / genome** accepts either a genome for the active plan, a matching plan and genome selected together (in either order), or a single `stratum.city-bundle.v1` JSON file containing `plan` and `genome`. The importer validates both files and checks the plan hash before replacing the active city. A plan alone is rejected because it needs a farmed genome. **Export plan + genome** saves a portable bundle; **Export current genome** retains the original genome-only format. Imported cities remain active until you switch regions or reload; export a bundle to keep them. Files are read locally in the browser, not uploaded to a server.
+The host transforms coordinates, indexes raw edges and uploads descriptors. It does not build a scene graph, triangles, facades or meshes. The only 2D canvas use is decoding numerical Terrarium PNG height data. Those pixels are elevations, not appearance textures.
 
-### Browser GPU search
+**1:1 refers to geodetic coordinates and metre scale, not complete or survey-accurate coverage.** Absolute positions use WGS84 ellipsoid radii and JavaScript double precision. Near the ground, local ENU coordinates avoid subtracting Earth-sized f32 positions. Available source building rings (including complete multipolygon holes) are intersected directly. Explicit source heights are fixed. Levels without heights use a labelled 3.1 m-per-level assumption. Missing heights and facade parameters are generated and labelled as such.
 
-Open `farm.html`, choose the budget and search seed, then click **Farm seeds**. This runs locally, separately from the viewer, in 128-candidate batches. Stop retains the best completed search state. Export the winner and import it into the viewer. The CPU and browser search algorithms differ, and GPU floating-point differences can alter rankings; they are not claimed to select identical winners.
+## Live data and provider responsibility
 
-The 48-byte gene vector and 1,280-byte packed plan are only parameters. The CUDA program, compiler, GPU bounds and frame buffers are still required.
+- **Natural Earth 1:110m land polygons:** fetched in the browser from a pinned upstream revision, cached, and converted to a 1024 × 512 coverage grid by CUDA. This is coarse globe context, not a high-resolution coastline or imagery layer.
+- **Terrain Tiles / Terrarium:** a bounded nearby 3 × 3 tile working set, two downloads in flight, 129 × 129 sampled ENU patch, with geographic caching. Data is fetched as the camera settles near the ground. The provider is Web Mercator and does not cover the polar caps.
+- **OpenStreetMap via Overpass:** user-triggered, bounded 1.2 km-wide area queries for footprints, roads, water and parks. One request at a time; response budgets, caching and 429/503/504 backoff. No rotation between public endpoints or planet scraping.
 
-## Rendering architecture
+**Public Overpass is not a production Earth-streaming backend.** Continuous vectors are disabled for the default public endpoint. The Explorer accepts an HTTPS Overpass-compatible endpoint; only enable continuous mode on infrastructure that permits your application's load. Terrain and source data are still fetched directly by the browser; the local Node server is a static server, not an upstream proxy.
 
-```text
-Shape plan + selected genome
-            ↓
-Deterministic finite lot descriptors
-            ↓
-One shared family/feature definition
-          ↙   ↘
-Conservative   Exact feature intersections
- group bounds  for primary AND reflected rays
-          ↘   ↙
-Materials · parallax rooms · glass/water reflection
-            ↓
-Footprint filtering · stationary accumulation · display
-```
+No API keys are required for the bounded public preview. Provider outages and incomplete responses remain visible. If elevation is unavailable, the UI labels an ellipsoid-datum preview; it does not invent mountains. Missing building data does not trigger a fabricated city. Downloaded data may be historical even though it is fetched live.
 
-There is **no near/far building model swap**, no page-residency-dependent detailed island, and no per-building primitive-page allocation. The same analytical feature set is queried throughout the finite plan. Bounds reject groups a ray cannot intersect; they are not rendered as replacement buildings. Fine material/relief frequencies filter with footprint. Finite stationary sampling stops changing after 64 samples and restarts for camera/light/settings changes.
+## Constrained seed farming
 
-The grid holds 128 × 128 descriptors and a **64 MiB bounds hierarchy**. Only the island's occupied lots produce buildings. Frame buffers are additional. Primary visibility and reflections use bounded row dispatches. Bounds rebuild on initial load/genome replacement, **not every camera frame**.
+`kernels/earth/farm.cu` performs three candidate generations (64 each) per object. The loss targets integer-like floor/bay counts and plausible intrinsic type-based height priors. Object IDs seed detail independently of the render frame and query order. Known footprints, source heights and positions are not variables in the search. This is a bounded visual-detail optimizer, **not** recovery of the true unknown architecture, a global metro solver or a confidence estimator.
 
-The original detailed definitions in `kernels/assets.cu` are retained. `kernels/city-assets.cu` adds city families and dispatches to the original definition where appropriate. The shared `emitFeature()` sink supplies bounds, enumeration, normals, materials and exact query geometry. There is no manually reimplemented low-detail roof/facade substitute.
+A change in source attributes or generator version can change generated detail. Neighbour-dependent regional architectural priors, vegetation geometry, roof-shape interpretation and interiors are not implemented in this milestone.
 
-## Controls
+## Streaming and resource lifetime
 
-WASD/arrows fly; drag to look; Q/E change height; Shift boosts; Ctrl slows; wheel changes speed. Keys 1–6 select the six views. P orbits, R toggles city reflections, I toggles interiors, J toggles building shadows, V cycles debug views, [ / ] rotate the sun, + / − change exposure, F enters fullscreen, H/Tab opens notes, C hides the interface and K captures the computed frame.
-
-Touch supports dragging/view buttons, not a full mobile flight controller. Movement is free flight rather than collision-constrained walking.
+The latest requested location supersedes old downloads. Rendering, GPU uploads, seed farming and buffer swaps share an ordered host queue. A new scene is committed only after generation completes and the request is still current. Previous buffers are retained until the swap succeeds. Location changes do not rebuild the four shader pipelines. The geographic cache is bounded to 64 MiB / 160 entries; the decoded DEM cache is bounded to 64 tiles.
 
 ## Validation
 
@@ -91,29 +59,16 @@ Touch supports dragging/view buttons, not a full mobile flight controller. Movem
 npm run build
 npm run test:source
 node tools/native-test.mjs
-npm run pages
+# Direct reference checks using exactly the new CUDA source:
+g++ -std=c++17 -O2 tests/earth/native.cpp -o earth-native && ./earth-native
+# Optional actual browser regression (Python Playwright, Chromium installed):
+python tools/earth/browser-test.py
 ```
 
-Performed for this version: all 13 entries translated with the bundled compiler; six Node tests passed, including source-hash validation and runtime compilation without `generated/`; 13,857 original feature records matched the frozen reference; 960 rays through new families matched exhaustive intersections with zero distance error. Native address/undefined-behaviour sanitizer tests passed. CPU references exercised the primary, interior and reflection lighting paths.
+Node tests cover geodesy, antimeridian queries, source geometry, missing attributes, multipolygons, cache/response budgets, backoff, latest-wins cancellation, module syntax, generated artifacts and absence of a mesh renderer. The browser regression executes all four pipelines on explicitly selected software WebGPU, checks known-height preservation, deterministic farming, footprint picking, globe rendering, UI loading and rapid location changes. Synthetic network fixtures are explicit; they are not a live-provider test or an RTX performance benchmark.
 
-**Browser execution could not be verified here:** Chromium navigation to localhost was blocked by the environment (`ERR_BLOCKED_BY_ADMINISTRATOR`). No RTX 5080, mobile FPS, native driver compile time or hardware stability claim is made. `tests/browser.html` compiles real-device pipelines, checks 48 native reference fixtures and compares GPU seed fitness with the native result.
+See [architecture and limitations](docs/earth/architecture.md) and [source attribution](docs/earth/sources.md). The UI retains visible source credits.
 
-See `docs/city/VALIDATION.md` for the measured search numbers and limitations. GitHub Pages requires **Settings → Pages → Source: GitHub Actions** to be enabled in this repository. The workflow compiles/tests before packaging; the test job does not itself execute a hardware GPU.
+## Software-adapter presentation
 
-## Limits
-
-This is a renderer/tooling prototype, not photogrammetry, a production game, a literal NYC map or an infinite world. Roads/blocks are stylized. Shadows use building masses rather than tracing every small feature. Reflections are one bounce at half resolution, not multiple-bounce GI; rough-surface, disocclusion and tiny-pane errors remain possible. Interior rooms are procedural cuboids, not walkable apartments. The shader cache cannot eliminate the graphics driver's pipeline compilation cost. Performance must be measured on the target GPU.
-
-Legacy infinite-renderer documentation and unused experimental kernels are retained for provenance; the current entry-point registry is `src/kernel-specs.js`. The active renderer has no neural component. Existing vendor notices and MIT licenses are preserved.
-
-### Melbourne planned-city study
-
-`cities/melbourne.city.json` contains a complete importable Melbourne-inspired plan and its farmed genome. The individual files are `cities/melbourne.plan.json` and `cities/melbourne.genome.json`. This compressed, art-directed study uses a river inlet, two skyline clusters, a gridded CBD and garden precincts. It is not surveyed Melbourne geography.
-
-Reproduce the search with:
-
-```sh
-node tools/farm.mjs --plan cities/melbourne.plan.json --out cities/melbourne.genome.json --candidates 16384 --seed 20260919
-```
-
-The supplied winner has training loss 0.006703 (baseline 0.103983), fresh audit loss 0.055919, and was selected from 16,384 evaluated candidates. These losses measure the supplied design targets, not real-world similarity.
+World generation, intersection, shading and seed farming run in the CUDA-authored compute kernels on both paths. Hardware adapters present the GPU color buffer directly to a WebGPU canvas. Software adapters (SwiftShader/lavapipe/llvmpipe) use an explicit compatibility path: read back the already-computed RGBA image and display it with `putImageData`. This does not generate geometry or shade the world in JavaScript; it is slower image transport around headless/software canvas interop. The renderer reports `presentation: 'readback'` or `'gpu-copy'` in its stats. Software browser results are not evidence of hardware presentation speed.

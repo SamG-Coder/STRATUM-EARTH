@@ -7,3 +7,8 @@ stratum-native.exe
 generated/
 .build-generated/
 Stratum.cu
+
+__pycache__/
+*.pyc
+reports/earth/
+earth-native

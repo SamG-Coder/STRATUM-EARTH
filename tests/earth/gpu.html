@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8"><title>Earth GPU regression</title><canvas id="canvas"></canvas><script type="module">
+import {EarthRenderer} from '../../src/earth/renderer.js';
+import {createTerrain} from '../../src/earth/terrain.js';
+window.testReady=true;
+window.runEarthTests=async()=>{
+ const stage=name=>{window.testStage=name;console.log('STAGE',name);};
+ const errors=window.testErrors=[],progress=window.testProgress=[];stage('init');
+ const renderer=new EarthRenderer(document.getElementById('canvas'),{onError:e=>{errors.push(String(e));console.error(String(e));},onProgress:e=>{progress.push(e);console.log('PROGRAM',JSON.stringify(e));}});window.renderer=renderer;
+ await renderer.init({width:256,height:160});renderer.device.lost.then(e=>{window.testLost={reason:e.reason,message:e.message};console.error('DEVICE LOST',JSON.stringify(window.testLost));});stage('land');
+ await renderer.setLand({features:[{geometry:{type:'Polygon',coordinates:[[[-20,-20],[20,-20],[20,20],[-20,20],[-20,-20]]]}}]});
+ stage('prepare');const terrain=createTerrain(0,0,1000,()=>0),osm={elements:[{type:'way',id:42,tags:{building:'yes',height:'30',name:'Known-height fixture'},geometry:[{lat:-.0003,lon:-.0003},{lat:-.0003,lon:.0003},{lat:.0003,lon:.0003},{lat:.0003,lon:-.0003},{lat:-.0003,lon:-.0003}]}]};
+ stage('setScene');await renderer.setScene(terrain,osm);stage('readGenomes');const before=await renderer.runtime.read(renderer.resources.Genomes);
+ stage('surface');const camera={lat:-.001,lon:0,height:22,yaw:0,pitch:-3,grid:false,provenance:false};await renderer.frame(camera);
+ stage('pick');const pick=await renderer.pick(128,80);const image=await renderer.runtime.read(renderer.resources.Pixels,Uint32Array);let colored=0,picked=0;for(let i=0;i<256*160;i++){if((image[i]&0xffffff)!==0)colored++;if(image[256*160+i]===1)picked++;}
+ stage('repeat farm');await renderer.setScene(terrain,osm);const after=await renderer.runtime.read(renderer.resources.Genomes);if(before[0]!==30||after.some((v,i)=>v!==before[i]))throw Error('Farm changed known height or was non-deterministic');
+ if(!pick||pick.id!=='way/42'||picked<100)throw Error('Source footprint intersection / picking failed: '+JSON.stringify({pick,picked}));
+ stage('globe');await renderer.frame({...camera,lat:10,height:14000000,pitch:-90});const globe=await renderer.runtime.read(renderer.resources.Pixels,Uint32Array);const unique=new Set(globe.slice(0,256*160)).size;if(unique<100)throw Error('Globe did not render');
+ stage('complete');if(errors.length)throw Error(errors.join('\n'));return {programs:4,presentation:renderer.presentation,knownHeight:before[0],exactFarm:true,pickedPixels:picked,coloredPixels:colored,globeColors:unique,adapter:renderer.runtime.describe(),errors};
+};
+</script>

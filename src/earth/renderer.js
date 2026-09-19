@@ -1,0 +1,50 @@
+import {GpuRuntime} from '../../vendor/cuda-webshader/runtime/runtime.js';
+import {EARTH_SPECS,earthOptions} from './kernel-specs.js';import {EARTH_BUILD} from './build-id.js';
+import {A,DEG,frameAt,toECEF,toLocal,directionToECEF,dot,norm} from './geodesy.js';
+import {landEdges,normalizeOSM} from './data.js';
+export class EarthRenderer{
+ constructor(canvas,{onProgress=()=>{},onError=()=>{},presentation='auto'}={}){this.canvas=canvas;this.requestedPresentation=presentation;this.onProgress=onProgress;this.onError=onError;this.gate=Promise.resolve();this.kernels={};this.resources={};this.C=new Float32Array(48);this.landReady=false;this.scene=null;this.rendered=0;this.pending=0;this.disposed=false;this.compileCount=0;}
+ exclusive(fn){const p=this.gate.then(()=>{if(this.disposed)throw Error('Earth renderer disposed');return fn();});this.gate=p.catch(()=>{});return p;}
+ async init({width=1024,height=640,device,adapter}={}){
+  if(!device){if(!navigator.gpu)throw Error('WebGPU is required: use a supported browser on HTTPS or localhost.');adapter=await navigator.gpu.requestAdapter({powerPreference:'high-performance'});if(!adapter)throw Error('No WebGPU adapter is available.');device=await adapter.requestDevice();}
+  this.device=device;this.runtime=new GpuRuntime(device,{adapter,onError:this.onError,ownsDevice:true});const info=adapter?.info||{},software=/swiftshader|lavapipe|llvmpipe/i.test([info.architecture,info.description].join(' '));this.presentation=this.requestedPresentation==='readback'||(this.requestedPresentation==='auto'&&software)?'readback':'gpu-copy';this.context=this.presentation==='gpu-copy'?this.canvas?.getContext('webgpu'):null;this.context2d=this.presentation==='readback'?this.canvas?.getContext('2d',{alpha:false}):null;
+  for(const spec of EARTH_SPECS){this.onProgress({entry:spec.entry,phase:'loading',done:this.compileCount,total:4});let artifact;
+   try{const r=await fetch(new URL('../../generated/earth/'+spec.entry+'.json',import.meta.url),{cache:'no-cache'});if(r.ok){const a=await r.json();if(a.earthBuild===EARTH_BUILD)artifact=a;}}catch{}
+   if(!artifact){const parts=await Promise.all(spec.units.map(async n=>{const r=await fetch(new URL('../../kernels/earth/'+n+'.cu',import.meta.url));if(!r.ok)throw Error('Missing CUDA source '+n);return r.text();}));artifact=await this.compile(parts.join('\n'),spec);}
+   this.onProgress({entry:spec.entry,phase:'pipeline',done:this.compileCount,total:4});this.kernels[spec.entry]=await this.runtime.kernel(artifact);this.compileCount++;this.onProgress({entry:spec.entry,phase:'ready',done:this.compileCount,total:4,bytes:new TextEncoder().encode(artifact.wgsl).length});
+  }
+  this.resources.C=this.runtime.createBuffer(48*4,{label:'Earth local and ECEF camera'});this.resources.Land=this.runtime.createBuffer(1024*512*4,{label:'CUDA generated geographic land mask'});
+  await this.resize(width,height);return this;
+ }
+ async compile(source,spec){
+  if(typeof Worker==='undefined'){const {compile,serializableArtifact}=await import('../../vendor/cuda-webshader/compiler/compiler.js');return serializableArtifact(compile(source,earthOptions(spec)));}
+  return new Promise((resolve,reject)=>{const w=new Worker(new URL('./compiler-worker.js',import.meta.url),{type:'module'}),end=(error,a)=>{clearTimeout(timer);w.terminate();error?reject(error):resolve(a);},timer=setTimeout(()=>end(Error('Earth CUDA translation timed out')),60000);w.onmessage=({data})=>end(data.error?Error(data.error):null,data.artifact);w.onerror=e=>end(Error(e.message||'Earth compiler worker failed'));w.postMessage({id:1,source,spec});});
+ }
+ binding(name,buffers={},scalars={}){const k=this.kernels[name],all={...this.resources,...buffers};return k.bind(Object.fromEntries(k.artifact.metadata.bindings.map(b=>[b.name,all[b.name]])),scalars);}
+ async resize(width,height){return this.exclusive(async()=>{width=Math.max(64,Math.ceil(width/64)*64);height=Math.max(64,Math.ceil(height/8)*8);if(width*height*8>this.device.limits.maxStorageBufferBindingSize||width>this.device.limits.maxTextureDimension2D||height>this.device.limits.maxTextureDimension2D)throw Error('Resolution exceeds the GPU buffer budget.');if(width===this.width&&height===this.height)return;await this.runtime.idle();if(this.resources.Pixels)this.runtime.destroyBuffer(this.resources.Pixels);this.width=width;this.height=height;this.resources.Pixels=this.runtime.createBuffer(width*height*8,{label:'CUDA color and provenance IDs'});if(this.canvas){this.canvas.width=width;this.canvas.height=height;}this.context?.configure({device:this.device,format:'rgba8unorm',usage:GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT,alphaMode:'opaque'});});}
+ async setLand(geo){const data=landEdges(geo);if(!data.edges.length)throw Error('No coastline geometry in the provider response.');return this.exclusive(async()=>{const Edges=this.runtime.createBuffer(data.edges),Rows=this.runtime.createBuffer(data.index);try{this.runtime.batch().dispatch(this.binding('earthLandMask',{Edges,Rows},{width:1024,height:512}),[128,64]).submit();await this.runtime.idle();this.landReady=true;}finally{this.runtime.destroyBuffer(Edges);this.runtime.destroyBuffer(Rows);}});}
+ async setScene(terrain,osm,{isCurrent=()=>true}={}){
+  const normalized=normalizeOSM(osm||{elements:[]},terrain.frame,{radius:terrain.radius,heightAt:terrain.heightAt});return this.exclusive(async()=>{
+   if(!isCurrent())return false;const next={},r=this.runtime;
+   try{for(const [name,data]of Object.entries({T:terrain.buffer,Objects:normalized.objects,Edges:normalized.edges,Index:normalized.index}))next[name]=r.createBuffer(data,{label:'Earth '+name});next.Genomes=r.createBuffer(Math.max(1,normalized.count)*8*4,{label:'GPU farmed unknown detail'});
+    if(normalized.count)r.batch().dispatch(this.binding('earthFarm',next,{count:normalized.count,candidates:64}),[Math.ceil(normalized.count/64)]).submit();await r.idle();
+    if(!isCurrent()){Object.values(next).forEach(b=>r.destroyBuffer(b));return false;}
+    const old=this.sceneResources;this.sceneResources=next;this.resources={...this.resources,...next};this.scene={terrain,normalized};if(old)Object.values(old).forEach(b=>r.destroyBuffer(b));return true;
+   }catch(e){Object.values(next).forEach(b=>r.destroyBuffer(b));throw e;}
+  });
+ }
+ camera(camera){
+  const c=this.C,f=frameAt(camera.lat,camera.lon),p=camera.pitch*DEG,y=camera.yaw*DEG,forward=[Math.sin(y)*Math.cos(p),Math.sin(p),Math.cos(y)*Math.cos(p)],right=[Math.cos(y),0,-Math.sin(y)],up=[-Math.sin(y)*Math.sin(p),Math.cos(p),-Math.cos(y)*Math.sin(p)],world=[directionToECEF(f,forward),directionToECEF(f,right),directionToECEF(f,up)],eye=toECEF(camera.lat,camera.lon,camera.height),sf=this.scene?.terrain.frame||f;
+  c.fill(0);c.set(toLocal(sf,camera.lat,camera.lon,camera.height),0);c[3]=performance.now()/1000;
+  for(let i=0;i<3;i++){c.set([dot(world[i],sf.east),dot(world[i],sf.up),dot(world[i],sf.north)],4+i*4);c.set(world[i],20+i*4);}c[7]=Math.tan(50*DEG/2);c[11]=this.width/this.height;c[15]=camera.height;c.set(eye.map(v=>v/A),16);c[19]=camera.provenance?1:0;c[23]=this.landReady?1:0;c[27]=camera.grid?1:0;
+  const sun=norm([-.45,.7,.55]);c.set(sun,32);c.set([dot(sun,sf.east),dot(sun,sf.up),dot(sun,sf.north)],36);
+  this.useSurface=!!this.scene&&camera.height<25000&&Math.abs(c[0])<this.scene.terrain.radius*.96&&Math.abs(c[2])<this.scene.terrain.radius*.96;
+ }
+ async frame(camera){return this.exclusive(async()=>{this.camera(camera);this.runtime.write(this.resources.C,this.C);const name=this.useSurface?'earthSurface':'earthGlobe';const batch=this.runtime.batch({label:name});batch.dispatch(this.binding(name,{}, {width:this.width,height:this.height}),[Math.ceil(this.width/8),Math.ceil(this.height/8)]).endPass();if(this.context)batch.encoder.copyBufferToTexture({buffer:this.resources.Pixels.gpuBuffer,bytesPerRow:this.width*4,rowsPerImage:this.height},{texture:this.context.getCurrentTexture()},[this.width,this.height]);batch.submit();await this.runtime.idle();if(this.context2d){const rgba=await this.runtime.read(this.resources.Pixels,Uint32Array,this.width*this.height*4,0);this.context2d.putImageData(new ImageData(new Uint8ClampedArray(rgba.buffer,rgba.byteOffset,rgba.byteLength),this.width,this.height),0,0);}this.rendered++;this.lastMode=name;});}
+ // Canvas swapchain textures expire after presentation. Keep the computed image in
+ // Pixels and refresh presentation without retracing an unchanged world.
+ async present(){return this.exclusive(async()=>{if(!this.context||!this.rendered)return;const e=this.device.createCommandEncoder({label:'Earth cached image presentation'});e.copyBufferToTexture({buffer:this.resources.Pixels.gpuBuffer,bytesPerRow:this.width*4,rowsPerImage:this.height},{texture:this.context.getCurrentTexture()},[this.width,this.height]);this.device.queue.submit([e.finish()]);await this.runtime.idle();});}
+ async pick(x,y){return this.exclusive(async()=>{const i=Math.floor(y)*this.width+Math.floor(x);if(i<0||i>=this.width*this.height||!this.scene)return null;const a=await this.runtime.read(this.resources.Pixels,Uint32Array,4,(this.width*this.height+i)*4),index=a[0]-1;if(index<0||index>=this.scene.normalized.count)return null;const record=this.scene.normalized.records[index],g=await this.runtime.read(this.resources.Genomes,Float32Array,32,index*32);return {...record,generatedHeight:g[0],windowBay:g[1],floorSpacing:g[2],farmLoss:g[7],candidateEvaluations:192};});}
+ stats(){return {build:EARTH_BUILD,renderer:'CUDA compute only',presentation:this.presentation,...this.runtime.stats,programs:this.compileCount,mode:this.lastMode||'initializing',frames:this.rendered,objects:this.scene?.normalized.count||0,skipped:this.scene?.normalized.warnings||{},terrain:this.scene?{valid:this.scene.terrain.valid,zoom:this.scene.terrain.zoom,radius:this.scene.terrain.radius}:null,gpuBytes:[...this.runtime.buffers].reduce((n,b)=>n+b.byteLength,0)};}
+ async dispose(){await this.gate;await this.runtime.idle();this.disposed=true;this.context?.unconfigure();this.runtime.dispose();}
+}

@@ -1,0 +1,13 @@
+<!doctype html><meta charset="utf-8"><title>Explicit live provider smoke test</title><script type="module">
+import {Network,GeographyProvider,ElevationProvider,SOURCES} from '../../src/earth/providers.js';
+import {normalizeOSM} from '../../src/earth/data.js';import {frameAt} from '../../src/earth/geodesy.js';
+window.liveReady=true;window.liveSmoke=async()=>{
+ const network=new Network(),report={checkedAt:new Date().toISOString(),location:{lat:-37.8136,lon:144.9631},tests:{}};
+ for(const [name,test]of [
+  ['coastline',async()=>{const r=await network.json(SOURCES.land);return {features:r.json.features.length,url:r.url,bytes:r.data.byteLength};}],
+  ['elevation',async()=>{const p=await new ElevationProvider(network).prepare(-37.8136,144.9631,1800);return {zoom:p.z,height:p.sample(-37.8136,144.9631)};}],
+  ['vectors',async()=>{const r=await new GeographyProvider(network).area(-37.8136,144.9631,{radius:200});const n=normalizeOSM(r.json,frameAt(-37.8136,144.9631));return {objects:n.count,warnings:n.warnings,timestamp:n.sourceTimestamp,bytes:r.data?.byteLength};}]
+ ]){try{report.tests[name]={ok:true,...await test()};}catch(e){report.tests[name]={ok:false,error:String(e)};}}
+ report.network={bytes:network.bytes,requests:network.requests};return report;
+};
+</script>
