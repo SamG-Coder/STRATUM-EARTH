@@ -5,6 +5,7 @@ import {makeGeometry,mergeTiles} from './geometry.js';
 import {neighbors} from './tiles.js';
 import {overviewCanvas} from './overview.js';
 import {throwIfAborted} from './provider.js';
+import {probeWebGPUPresentation} from './render-device.js';
 const rad=Math.PI/180;
 const v3=a=>new THREE.Vector3(...a);
 function frameMatrix(from,to){const r=to.axes.map(a=>from.axes.map(b=>a.reduce((n,v,i)=>n+v*b[i],0))),p=to.projectECEF(from.origin);return new THREE.Matrix4().set(r[0][0],r[0][1],r[0][2],p[0],r[1][0],r[1][1],r[1][2],p[1],r[2][0],r[2][1],r[2][2],p[2],0,0,0,1);}
@@ -16,9 +17,9 @@ export class EarthRenderer {
  }
  async init(){
   const options={canvas:this.canvas,antialias:true,alpha:false};
-  // Keep the complete GPU/adapter/device lifetime owned by the viewer and request
-  // only baseline features used by this renderer, not every advertised extension.
-  try{this.gpu=navigator.gpu;if(!this.gpu)throw new Error('WebGPU unavailable');this.adapter=await this.gpu.requestAdapter({powerPreference:'high-performance'});if(!this.adapter)throw new Error('No WebGPU adapter');this.device=await this.adapter.requestDevice();options.device=this.device;}catch{options.forceWebGL=true;}
+  this.presentation=await probeWebGPUPresentation();
+  if(!this.presentation.ok){options.forceWebGL=true;console.warn('WebGPU canvas unavailable; using WebGL2 rendering. CUDA compute is checked separately.',this.presentation.reason);}
+  else try{this.gpu=navigator.gpu;this.adapter=await this.gpu.requestAdapter({powerPreference:'high-performance'});if(!this.adapter)throw new Error('No WebGPU adapter');this.device=await this.adapter.requestDevice();options.device=this.device;}catch(error){options.forceWebGL=true;this.presentation={ok:false,reason:error.message};}
   this.renderer=new THREE.WebGPURenderer(options);await this.renderer.init();this.backend=this.renderer.backend.isWebGPUBackend?'WebGPU':'WebGL2 fallback';
   const lost=this.renderer.onDeviceLost.bind(this.renderer);this.renderer.onDeviceLost=info=>{lost(info);if(!this.disposed){this.renderFailure=new Error('Render device lost: '+info.message);this.onError(this.renderFailure);}};
   this.renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));this.renderer.toneMapping=THREE.AgXToneMapping;this.renderer.toneMappingExposure=1.35;
