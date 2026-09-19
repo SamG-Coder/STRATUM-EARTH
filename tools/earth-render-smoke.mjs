@@ -1,4 +1,5 @@
 import {chromium} from 'playwright';
+import {browserOptions} from './earth-browser-options.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import http from 'node:http';
@@ -8,7 +9,7 @@ const server=http.createServer(async(req,res)=>{try{if(req.url==='/'){res.setHea
 await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port+'/';
 let browser;const results=[];
 try{
- browser=await chromium.launch({headless:true,args:['--no-sandbox','--enable-unsafe-webgpu','--use-angle=swiftshader','--use-webgpu-adapter=swiftshader','--enable-logging=stderr']});
+ browser=await chromium.launch(browserOptions());
  for(const mode of ['native','basic','standard','msaa','textured']){
   const page=await browser.newPage({viewport:{width:256,height:256}}),messages=[];page.on('console',m=>messages.push(m.type()+': '+m.text()));page.on('pageerror',e=>messages.push(e.stack));await page.goto(base);
   const result=await page.evaluate(async mode=>{
