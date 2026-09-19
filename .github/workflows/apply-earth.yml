@@ -27,7 +27,7 @@ jobs:
           echo "2d637a76768a4f2ce9478296bfe1ebdfb40efb6bc3624660c2d1e81122b2d3bb  $RUNNER_TEMP/earth.patch" | sha256sum -c -
           git apply --check "$RUNNER_TEMP/earth.patch"
           git apply "$RUNNER_TEMP/earth.patch"
-          for patch in .earth-diagnostics.patch .earth-math.patch .earth-software.patch .earth-presentation.patch; do
+          for patch in .earth-diagnostics.patch .earth-math.patch .earth-software.patch .earth-presentation.patch .earth-canvas.patch; do
             git apply --check "$patch"
             git apply "$patch"
           done
@@ -56,7 +56,7 @@ jobs:
         run: |
           set -euo pipefail
           git restore .github/workflows/earth-validation.yml
-          git rm .earth-patch-{1,2,3,4,5,6,7}.b64 .earth-diagnostics.patch .earth-math.patch .earth-software.patch .earth-presentation.patch
+          git rm .earth-patch-{1,2,3,4,5,6,7}.b64 .earth-diagnostics.patch .earth-math.patch .earth-software.patch .earth-presentation.patch .earth-canvas.patch
           git add .gitignore README.md city.html docs/city-laboratory.md docs/earth earth.css index.html kernels/earth package.json server.mjs src/compiler-stamp.js src/earth tests/earth tests/source.test.mjs tools/earth tools/pages.mjs
           if git diff --cached --name-only | grep -q '^.github/workflows/'; then echo 'Workflow mutation outside Actions token scope'; exit 1; fi
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Implement CUDA-only geodetic Earth with live data and constrained GPU seed farming'
